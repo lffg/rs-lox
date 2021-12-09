@@ -21,7 +21,6 @@ dependencies = [
  "anyhow",
  "lazy_static",
  "peekmore",
- "smallvec",
 ]
 
 [[package]]

@@ -7,4 +7,3 @@ edition = "2021"
 anyhow = "1"
 lazy_static = "1"
 peekmore = { version = "1", features = ["smallvec"] }
-smallvec = "1"
