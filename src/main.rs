@@ -8,7 +8,7 @@ use anyhow::Result;
 use lox::scanner::Scanner;
 
 fn main() -> Result<()> {
-    if let Some(script_file_name) = env::args().skip(1).next() {
+    if let Some(script_file_name) = env::args().nth(1) {
         run_file(script_file_name)?;
     } else {
         run_prompt()?;

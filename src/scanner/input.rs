@@ -57,7 +57,7 @@ impl<'s> Input<'s> {
     /// Returns a slice of the source string over the given span bounds.
     #[inline]
     pub fn spanned(&self, span: Span) -> &'s str {
-        &self.source[span.lo..span.hi]
+        &self.source()[span.lo..span.hi]
     }
 }
 
