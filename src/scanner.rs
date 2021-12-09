@@ -57,7 +57,7 @@ impl<'s> Scanner<'s> {
             '*' => Star,
             '"' => self.string()?,
             '/' => self.slash_or_comment(),
-            '<' => self.peek_select('=', LessEqual, Equal),
+            '<' => self.peek_select('=', LessEqual, Less),
             '>' => self.peek_select('=', GreaterEqual, Greater),
             '!' => self.peek_select('=', BangEqual, Bang),
             '=' => self.peek_select('=', EqualEqual, Equal),
@@ -119,7 +119,7 @@ impl<'s> Scanner<'s> {
         Ok(TokenKind::String(lit_val))
     }
 
-    /// Tries to scan a `Identifier` token kind.
+    /// Scans a `Identifier` token kind. If it is a reserved keyword, returns `Keyword`.
     fn identifier(&mut self) -> TokenKind {
         while is_valid_identifier_end(self.input.peek().1) {
             self.input.advance();
