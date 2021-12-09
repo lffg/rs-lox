@@ -3,13 +3,14 @@ use std::iter;
 use anyhow::{bail, Result};
 
 use crate::{
-    human,
     scanner::input::{Input, SpannedChar},
     span::Span,
     token::{Token, TokenKind},
+    utils::{humanized_char, is_valid_identifier_end, is_valid_identifier_start},
 };
 
 mod input;
+mod keywords;
 
 pub struct Scanner<'s> {
     input: Input<'s>,
@@ -61,12 +62,13 @@ impl<'s> Scanner<'s> {
             '!' => self.peek_select('=', BangEqual, Bang),
             '=' => self.peek_select('=', EqualEqual, Equal),
             c if c.is_whitespace() => Whitespace(c),
+            c if is_valid_identifier_start(c) => self.identifier(),
             c if c.is_digit(10) => self.number()?,
             c => {
                 self.input.advance();
                 bail!(
                     "Unexpected character `{}` at position {}.",
-                    human::char(c),
+                    humanized_char(c),
                     span
                 );
             }
@@ -116,6 +118,20 @@ impl<'s> Scanner<'s> {
         let lit_val = self.input.spanned(lit_span).into();
         Ok(TokenKind::String(lit_val))
     }
+
+    /// Tries to scan a `Identifier` token kind.
+    fn identifier(&mut self) -> TokenKind {
+        while is_valid_identifier_end(self.input.peek().1) {
+            self.input.advance();
+        }
+        let lit_span = self.lexme_lo_bound.to(self.input.current().0);
+        let lit_val = self.input.spanned(lit_span);
+        match keywords::LOX_KEYWORDS.get(lit_val) {
+            // Since keyword token kinds have no internal data, the following clone is cheap.
+            Some(kind) => kind.clone(),
+            None => TokenKind::Identifier(lit_val.into()),
+        }
+    }
 }
 
 // The scanner helper methods.
@@ -150,8 +166,8 @@ impl<'s> Scanner<'s> {
         if char != expected {
             bail!(
                 "Unexpected character `{}`, expected `{}` at position {}.",
-                human::char(char),
-                human::char(expected),
+                humanized_char(char),
+                humanized_char(expected),
                 span
             );
         }
