@@ -17,7 +17,7 @@ fn main() -> Result<()> {
 }
 
 fn run(source: &str) -> Result<()> {
-    let mut scanner = Scanner::new(source.trim());
+    let scanner = Scanner::new(source.trim());
     for token in scanner.scan_tokens() {
         println!("token: {:?}", token);
     }

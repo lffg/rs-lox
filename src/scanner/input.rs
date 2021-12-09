@@ -1,4 +1,6 @@
-use std::{iter::Peekable, str::CharIndices};
+use std::str::CharIndices;
+
+use peekmore::{PeekMore, PeekMoreIterator};
 
 use crate::span::Span;
 
@@ -6,14 +8,14 @@ pub type SpannedChar = (Span, char);
 
 pub struct Input<'s> {
     source: &'s str,
-    chars: Peekable<CharIndices<'s>>,
+    chars: PeekMoreIterator<CharIndices<'s>>,
     current: SpannedChar,
 }
 
 impl<'s> Input<'s> {
     /// Creates a new input iterator.
     pub fn new(source: &'s str) -> Input<'s> {
-        let mut chars = source.char_indices().peekable();
+        let mut chars = source.char_indices().peekmore();
         let current = chars.next().map(to_spanned).unwrap_or_default();
         Input {
             source,
@@ -40,6 +42,12 @@ impl<'s> Input<'s> {
             self.chars.peek().copied().map(to_spanned),
             self.source.len(),
         )
+    }
+
+    /// Peeks into the `n`th char in the iterator.
+    #[inline]
+    pub fn peek_nth_char(&mut self, n: usize) -> char {
+        self.chars.peek_nth(n).map(|(_, c)| *c).unwrap_or('\0')
     }
 
     /// Checks if the input is finished.

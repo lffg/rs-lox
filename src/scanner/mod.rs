@@ -19,7 +19,7 @@ pub struct Scanner<'s> {
 // The actual scanner implementation.
 impl<'s> Scanner<'s> {
     /// Returns a new iterator over the tokens of the source stream.
-    pub fn scan_tokens(&'s mut self) -> impl Iterator<Item = Result<Token<'s>>> {
+    pub fn scan_tokens(mut self) -> impl Iterator<Item = Result<Token<'s>>> {
         let mut done = false;
         iter::from_fn(move || {
             if done {
@@ -61,6 +61,7 @@ impl<'s> Scanner<'s> {
             '!' => self.peek_select('=', BangEqual, Bang),
             '=' => self.peek_select('=', EqualEqual, Equal),
             c if c.is_whitespace() => Whitespace(c),
+            c if c.is_digit(10) => self.number()?,
             c => {
                 self.input.advance();
                 bail!(
@@ -84,6 +85,22 @@ impl<'s> Scanner<'s> {
             return TokenKind::Comment(lit_val);
         }
         TokenKind::Slash
+    }
+
+    /// Tries to scan a `Number` token kind.
+    fn number(&mut self) -> Result<TokenKind> {
+        while self.input.peek().1.is_digit(10) {
+            self.input.advance();
+        }
+        if self.peek_is('.') && self.input.peek_nth_char(1).is_digit(10) {
+            self.peek_expect('.')?;
+            while self.input.peek().1.is_digit(10) {
+                self.input.advance();
+            }
+        }
+        let lit_span = self.lexme_lo_bound.to(self.input.current().0);
+        let lit_val = self.input.spanned(lit_span);
+        Ok(TokenKind::Number(lit_val.parse()?))
     }
 
     /// Tries to scan a `String` token kind.

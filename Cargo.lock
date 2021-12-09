@@ -13,4 +13,21 @@ name = "lox"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "peekmore",
+ "smallvec",
 ]
+
+[[package]]
+name = "peekmore"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ca84ba11ed2de09f9a946e35be5efe5382bdd0621780b46ea8e24a7797b5be88"
+dependencies = [
+ "smallvec",
+]
+
+[[package]]
+name = "smallvec"
+version = "1.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1ecab6c735a6bb4139c0caafd0cc3635748bbb3acf4550e8138122099251f309"
