@@ -20,7 +20,7 @@ pub struct Scanner<'s> {
 // The actual scanner implementation.
 impl<'s> Scanner<'s> {
     /// Returns a new iterator over the tokens of the source stream.
-    pub fn scan_tokens(mut self) -> impl Iterator<Item = Result<Token<'s>>> {
+    pub fn scan_tokens(mut self) -> impl Iterator<Item = Result<Token>> + 's {
         let mut done = false;
         iter::from_fn(move || {
             if done {
@@ -39,7 +39,7 @@ impl<'s> Scanner<'s> {
     }
 
     /// Produces the next token.
-    fn scan_token(&mut self) -> Result<Token<'s>> {
+    fn scan_token(&mut self) -> Result<Token> {
         use TokenKind::*;
         let (span, char) = self.input.current();
 
@@ -185,13 +185,9 @@ impl<'s> Scanner<'s> {
 
     /// Creates a new token.
     #[inline]
-    fn token(&mut self, kind: TokenKind) -> Token<'s> {
+    fn token(&mut self, kind: TokenKind) -> Token {
         let span = self.lexme_lo_bound.to(self.input.current().0);
-        let token = Token {
-            kind,
-            lexme: self.input.spanned(span),
-            span,
-        };
+        let token = Token::new(kind, self.input.spanned(span), span);
         self.input.advance();
         token
     }

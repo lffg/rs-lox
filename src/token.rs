@@ -1,14 +1,15 @@
 use crate::span::Span;
 
 #[derive(Debug)]
-pub struct Token<'s> {
+pub struct Token {
     pub kind: TokenKind,
-    pub lexme: &'s str,
+    pub lexme: String, // TODO: Change to interned string symbol.
     pub span: Span,
 }
 
-impl<'s> Token<'s> {
-    pub fn new(kind: TokenKind, lexme: &'s str, span: Span) -> Self {
+impl Token {
+    pub fn new(kind: TokenKind, lexme: &str, span: Span) -> Self {
+        let lexme = lexme.into();
         Token { kind, lexme, span }
     }
 }
