@@ -11,14 +11,14 @@ pub struct Parser {
 }
 
 macro_rules! binary_production {
-    ($self:expr, higher = $higher:ident, token_kinds = $( $kind:ident )|+ ) => {{
-        let mut expr = $self.$higher()?;
+    ($self:expr, next = $next:ident, token_kinds = $( $kind:ident )|+ ) => {{
+        let mut expr = $self.$next()?;
         while let $( TokenKind::$kind )|+ = $self.current_kind() {
             let operator: BinaryOperator = $self.advance_kind().clone().into();
             expr = Binary {
                 left: expr.into(),
                 operator,
-                right: $self.$higher()?.into(),
+                right: $self.$next()?.into(),
             }
             .into();
         }
@@ -57,7 +57,7 @@ impl Parser {
     fn equality(&mut self) -> Result<Expr> {
         binary_production!(
             self,
-            higher = comparison,
+            next = comparison,
             token_kinds = BangEqual | EqualEqual
         )
     }
@@ -65,17 +65,17 @@ impl Parser {
     fn comparison(&mut self) -> Result<Expr> {
         binary_production!(
             self,
-            higher = term,
+            next = term,
             token_kinds = Greater | GreaterEqual | Less | LessEqual
         )
     }
 
     fn term(&mut self) -> Result<Expr> {
-        binary_production!(self, higher = factor, token_kinds = Plus | Minus)
+        binary_production!(self, next = factor, token_kinds = Plus | Minus)
     }
 
     fn factor(&mut self) -> Result<Expr> {
-        binary_production!(self, higher = unary, token_kinds = Star | Slash)
+        binary_production!(self, next = unary, token_kinds = Star | Slash)
     }
 
     fn unary(&mut self) -> Result<Expr> {
