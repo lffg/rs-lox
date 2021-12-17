@@ -58,7 +58,7 @@ fn run_prompt() -> Result<()> {
                 .split_ascii_whitespace()
                 .filter(|s| !s.is_empty())
                 .collect();
-            match cmd[0] {
+            match *cmd.first().unwrap_or(&"<empty>") {
                 "exit" => return Ok(()),
                 "eval" => {
                     for file in &cmd[1..] {
@@ -68,7 +68,7 @@ fn run_prompt() -> Result<()> {
                         }
                     }
                 }
-                "help" => todo!(), // kek
+                "help" => eprintln!(":exit | :eval a b ... | :help"),
                 invalid => eprintln!(
                     "The command `{}` is not valid. Type `:help` for guidance.",
                     invalid
