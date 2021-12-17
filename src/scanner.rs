@@ -162,9 +162,8 @@ impl Scanner {
     /// Returns the current character and advances the `current` cursor.
     #[inline]
     fn advance(&mut self) -> char {
-        let prev = self.current();
         self.current += 1;
-        prev
+        self.nth(self.current - 1)
     }
 
     /// Checks if the current character matches the given one. In such case advances and returns
