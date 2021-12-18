@@ -21,9 +21,25 @@ macro_rules! make_enum {
 }
 
 pub mod expr {
-    use crate::token::{Token, TokenKind};
+    use crate::{
+        span::Span,
+        token::{Token, TokenKind},
+    };
 
-    make_enum!(Expr, [Literal, Group, Unary, Binary]);
+    #[derive(Debug)]
+    pub struct Expr {
+        pub kind: ExprKind,
+        pub span: Span,
+    }
+
+    make_enum!(ExprKind, [Literal, Group, Unary, Binary]);
+
+    impl ExprKind {
+        /// Converts the `ExprKind` into an `Expr` given a span.
+        pub fn into_expr(self, span: Span) -> Expr {
+            Expr { kind: self, span }
+        }
+    }
 
     #[derive(Debug)]
     pub enum Literal {
