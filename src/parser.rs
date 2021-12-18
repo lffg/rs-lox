@@ -91,7 +91,7 @@ impl Parser<'_> {
     fn parse_unary(&mut self) -> Result<Expr> {
         use TokenKind::{Bang, Minus};
         if let Bang | Minus = self.current_token.kind {
-            let operator = self.advance().clone();
+            let operator = self.advance();
             let operand = self.parse_unary()?;
             let span = operator.span.to(operand.span);
             return Ok(Expr {
@@ -152,10 +152,7 @@ impl<'src> Parser<'src> {
     #[inline]
     fn is_ignored_kind(kind: &TokenKind) -> bool {
         use TokenKind::*;
-        match kind {
-            Comment(_) | NewLine | Whitespace => true,
-            _ => false,
-        }
+        matches!(kind, Comment(_) | NewLine | Whitespace)
     }
 
     /// Advances the `current_token` field and returns the previous one.

@@ -11,7 +11,7 @@ pub mod tree {
         for expr in exprs {
             match &expr.kind {
                 Literal(e) => print_rec(&format!("Literal ({})", e), [], indent),
-                Group(e) => print_rec(&format!("Group"), [&e.expr], indent),
+                Group(e) => print_rec("Group", [&e.expr], indent),
                 Unary(e) => print_rec(&format!("Unary (op: {})", e.operator), [&e.operand], indent),
                 Binary(e) => print_rec(
                     &format!("Binary (op: {})", e.operator),
