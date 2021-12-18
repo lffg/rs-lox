@@ -1,14 +1,14 @@
-#[derive(Debug)]
+use crate::span::Span;
+
+#[derive(Debug, Clone)]
 pub struct Token {
     pub kind: TokenKind,
-    pub lexme: String, // TODO: Change to an interned string symbol.
-    pub line: usize,
+    pub span: Span,
 }
 
 impl Token {
-    pub fn new(kind: TokenKind, lexme: &str, line: usize) -> Self {
-        let lexme = lexme.into();
-        Self { kind, lexme, line }
+    pub fn new(kind: TokenKind, span: Span) -> Self {
+        Self { kind, span }
     }
 }
 
@@ -60,4 +60,7 @@ pub enum TokenKind {
     Print,
 
     Eof,
+
+    Dummy,
+    Error(String),
 }

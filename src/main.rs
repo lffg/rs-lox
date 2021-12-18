@@ -16,20 +16,10 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn run(source: &str) -> Result<()> {
-    let mut is_valid = true;
-
-    let (tokens, scanner_diagnostics) = Scanner::new(source).scan_tokens();
-    if !scanner_diagnostics.is_empty() {
-        is_valid = false;
-        scanner_diagnostics.report_all();
-    }
-
-    for token in tokens {
+fn run(src: &str) -> Result<()> {
+    let scanner = Scanner::new(src);
+    for token in scanner {
         println!("{:?}", token);
-    }
-    if is_valid {
-        println!("ok");
     }
     Ok(())
 }

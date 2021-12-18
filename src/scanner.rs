@@ -1,43 +1,46 @@
-use anyhow::{bail, Result};
-
 use crate::{
-    diagnostics::Diagnostics,
     scanner::identifier::{is_valid_identifier_start, is_valid_identifier_tail, LOX_KEYWORDS},
+    span::Span,
     token::{Token, TokenKind},
 };
 
 mod identifier;
 
-pub struct Scanner {
-    chars: Vec<char>,
-    tokens: Vec<Token>,
-    diagnostics: Diagnostics,
-    line: usize,
-    current: usize,
-    lexme_start: usize,
+pub struct Scanner<'src> {
+    src: &'src str,
+    chars: Vec<(usize, char)>, // Start byte index and char
+    cursor: usize,
+    lexme_span_start: usize,
+    emitted_eof: bool,
 }
 
-// The actual scanner implementation.
-impl Scanner {
-    /// Scans the source input string.
-    pub fn scan_tokens(mut self) -> (Vec<Token>, Diagnostics) {
-        while {
-            self.lexme_start = self.current;
-            !self.is_at_end()
-        } {
-            match self.scan_token_kind() {
-                Ok(kind) => self.add_token(kind),
-                Err(err) => self.diagnostics.diagnose(self.line, err.to_string()),
-            }
-        }
-        self.add_token(TokenKind::Eof);
-        (self.tokens, self.diagnostics)
-    }
+impl Iterator for Scanner<'_> {
+    type Item = Token;
 
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.emitted_eof {
+            return None;
+        }
+        // Ensures the next token starts with a new span.
+        self.lexme_span_start = self.peek(0).0;
+        let kind = self.scan_token_kind();
+        if kind == TokenKind::Eof {
+            self.emitted_eof = true;
+        }
+        Some(Token {
+            kind,
+            span: self.lexme_span(),
+        })
+    }
+}
+
+// The scanner implementation.
+impl Scanner<'_> {
     /// Tries to scan the current character.
-    pub fn scan_token_kind(&mut self) -> Result<TokenKind> {
+    pub fn scan_token_kind(&mut self) -> TokenKind {
         use TokenKind::*;
-        let kind = match self.advance() {
+        match self.advance() {
+            '\0' => Eof,
             '(' => LeftParen,
             ')' => RightParen,
             '{' => LeftBrace,
@@ -52,64 +55,61 @@ impl Scanner {
             '+' => Plus,
             '-' => Minus,
             '*' => Star,
-            '"' => self.string()?,
+            '"' => self.string(),
             '/' => self.comment_or_slash(),
-            c if c.is_ascii_digit() => self.number()?,
+            c if c.is_ascii_digit() => self.number(),
             c if c.is_ascii_whitespace() => self.new_line_or_whitespace(c),
             c if is_valid_identifier_start(c) => self.identifier_or_keyword(),
-            unexpected => bail!("Unexpected character `{}`.", unexpected),
-        };
-        Ok(kind)
+            unexpected => Error(format!("Unexpected character `{}`.", unexpected)),
+        }
     }
 
-    // Tries to scan a string.
-    fn string(&mut self) -> Result<TokenKind> {
+    /// Tries to scan a string.
+    fn string(&mut self) -> TokenKind {
         while self.current() != '"' && !self.is_at_end() {
-            if self.current() == '\n' {
-                self.line += 1;
-            }
             self.advance();
         }
         if self.is_at_end() {
-            bail!("Unterminated string");
+            return TokenKind::Error("Unterminated string.".into());
         }
         self.advance(); // The closing `"`
-        Ok(TokenKind::String(self.lexme(1, -1)))
+        TokenKind::String(self.lexme(1, -1).into())
     }
 
-    // Scans a comment or a slash.
+    /// Scans a comment or a slash.
     fn comment_or_slash(&mut self) -> TokenKind {
         if self.take('/') {
             while self.current() != '\n' && !self.is_at_end() {
                 self.advance();
             }
-            TokenKind::Comment(self.lexme(2, 0))
+            TokenKind::Comment(self.lexme(2, 0).into())
         } else {
             TokenKind::Slash
         }
     }
 
-    // Tries to scan a number.
-    fn number(&mut self) -> Result<TokenKind> {
+    /// Tries to scan a number.
+    fn number(&mut self) -> TokenKind {
         while self.current().is_ascii_digit() {
             self.advance();
         }
-        if self.current() == '.' && self.peek(1).is_ascii_digit() {
+        if self.current() == '.' && self.peek(1).1.is_ascii_digit() {
             self.advance(); // The `.` separator
             while self.current().is_ascii_digit() {
                 self.advance();
             }
         }
-        Ok(TokenKind::Number(self.lexme(0, 0).parse()?))
+        match self.lexme(0, 0).parse() {
+            Ok(parsed) => TokenKind::Number(parsed),
+            Err(_) => TokenKind::Error("Unparseable number literal.".into()),
+        }
     }
 
     /// Scans a newline or a whitespace.
     fn new_line_or_whitespace(&mut self, c: char) -> TokenKind {
-        if c == '\n' {
-            self.line += 1;
-            TokenKind::NewLine
-        } else {
-            TokenKind::Whitespace
+        match c {
+            '\n' => TokenKind::NewLine,
+            _ => TokenKind::Whitespace,
         }
     }
 
@@ -119,51 +119,47 @@ impl Scanner {
             self.advance();
         }
         let name = self.lexme(0, 0);
-        match LOX_KEYWORDS.get(name.as_str()) {
+        match LOX_KEYWORDS.get(name) {
             // Since keyword token kinds have no internal data, the following clone is cheap.
             Some(keyword_kind) => keyword_kind.clone(),
-            None => TokenKind::Identifier(name),
+            None => TokenKind::Identifier(name.into()),
         }
     }
 }
 
 // The scanner helper methods.
-impl Scanner {
+impl<'src> Scanner<'src> {
     /// Creates a new scanner.
-    pub fn new(source: &str) -> Self {
+    pub fn new(src: &'src str) -> Self {
         Self {
-            chars: source.chars().collect(),
-            tokens: Vec::new(),
-            diagnostics: Diagnostics::new(),
-            line: 1,
-            current: 0,
-            lexme_start: 0,
+            src,
+            chars: src.char_indices().collect(),
+            cursor: 0,
+            lexme_span_start: 0,
+            emitted_eof: false,
         }
     }
 
-    /// Indexes the `n`th character.
+    /// Peeks a character tuple with the given offset from the cursor.
     #[inline]
-    fn nth(&self, n: usize) -> char {
-        self.chars.get(n).copied().unwrap_or('\0')
-    }
-
-    /// Peeks a character in a given offset from the `current` cursor.
-    #[inline]
-    fn peek(&self, offset: usize) -> char {
-        self.nth(self.current + offset)
+    fn peek(&self, offset: isize) -> (usize, char) {
+        self.chars
+            .get((self.cursor as isize + offset) as usize)
+            .copied()
+            .unwrap_or((self.src.len(), '\0'))
     }
 
     /// Peeks into the current character (not yet consumed).
     #[inline]
     fn current(&self) -> char {
-        self.peek(0)
+        self.peek(0).1
     }
 
     /// Returns the current character and advances the `current` cursor.
     #[inline]
     fn advance(&mut self) -> char {
-        self.current += 1;
-        self.nth(self.current - 1)
+        self.cursor += 1;
+        self.peek(-1).1
     }
 
     /// Checks if the current character matches the given one. In such case advances and returns
@@ -187,27 +183,22 @@ impl Scanner {
         }
     }
 
+    /// Returns the current lexme span.
+    #[inline]
+    fn lexme_span(&self) -> Span {
+        Span::new(self.lexme_span_start, self.peek(0).0)
+    }
+
+    /// Returns a lexme slice.
+    #[inline]
+    fn lexme(&self, lo: isize, hi: isize) -> &'src str {
+        let span = self.lexme_span().updated(lo, hi);
+        &self.src[span.lo..span.hi]
+    }
+
     /// Checks if the scanner has finished.
     #[inline]
     fn is_at_end(&self) -> bool {
-        self.current >= self.chars.len()
-    }
-
-    /// Returns the current lexme string.
-    #[inline]
-    fn lexme(&self, lower_bound_offset: isize, higher_bound_offset: isize) -> String {
-        let lo = self.lexme_start as isize + lower_bound_offset;
-        let hi = self.current as isize + higher_bound_offset;
-        self.chars[lo as _..hi as _].iter().collect()
-    }
-
-    /// Creates a new token.
-    #[inline]
-    fn add_token(&mut self, kind: TokenKind) {
-        self.tokens.push(Token {
-            kind,
-            lexme: self.chars[self.lexme_start..self.current].iter().collect(),
-            line: self.line,
-        });
+        self.cursor >= self.chars.len()
     }
 }
