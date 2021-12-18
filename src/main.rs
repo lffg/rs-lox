@@ -5,7 +5,7 @@ use std::{
 };
 
 use anyhow::Result;
-use lox::scanner::Scanner;
+use lox::{parser::Parser, scanner::Scanner};
 
 fn main() -> Result<()> {
     if let Some(script_file_name) = env::args().nth(1) {
@@ -18,9 +18,8 @@ fn main() -> Result<()> {
 
 fn run(src: &str) -> Result<()> {
     let scanner = Scanner::new(src);
-    for token in scanner {
-        println!("{:?}", token);
-    }
+    let tree = Parser::new(scanner).parse()?;
+    lox::ast::dbg::tree::print_expr(&tree);
     Ok(())
 }
 
