@@ -31,7 +31,7 @@ macro_rules! binary_expression {
     }};
 }
 
-// The actual parser implementation.
+// The parser implementation.
 //
 // # Grammar:
 //
