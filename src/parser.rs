@@ -56,6 +56,11 @@ impl Parser<'_> {
             self.synchronize_with(err);
         }
 
+        // Allow an empty expression
+        if self.current_token.kind == TokenKind::Eof {
+            return (None, self.diagnostics);
+        }
+
         // THIS IS TEMPORARY, WILL BE REMOVED SOON.
         let expr = match self.temp_parse_finished_expression() {
             Ok(expr) => Some(expr),

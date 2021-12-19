@@ -71,10 +71,6 @@ fn run_prompt() -> Result<()> {
             continue;
         }
 
-        if source.is_empty() {
-            continue;
-        }
-
         run(source).unwrap_or_else(|err| {
             eprintln!("{:?}", err);
         });
