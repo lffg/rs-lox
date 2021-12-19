@@ -60,7 +60,7 @@ impl Scanner<'_> {
             c if c.is_ascii_digit() => self.number(),
             c if c.is_ascii_whitespace() => self.new_line_or_whitespace(c),
             c if is_valid_identifier_start(c) => self.identifier_or_keyword(),
-            unexpected => Error(format!("Unexpected character `{}`.", unexpected)),
+            unexpected => Error(format!("Unexpected character `{}`", unexpected)),
         }
     }
 
@@ -70,7 +70,7 @@ impl Scanner<'_> {
             self.advance();
         }
         if self.is_at_end() {
-            return TokenKind::Error("Unterminated string.".into());
+            return TokenKind::Error("Unterminated string".into());
         }
         self.advance(); // The closing `"`
         TokenKind::String(self.lexme(1, -1).into())
@@ -101,7 +101,7 @@ impl Scanner<'_> {
         }
         match self.lexme(0, 0).parse() {
             Ok(parsed) => TokenKind::Number(parsed),
-            Err(_) => TokenKind::Error("Unparseable number literal.".into()),
+            Err(_) => TokenKind::Error("Unparseable number literal".into()),
         }
     }
 

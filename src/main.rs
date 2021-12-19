@@ -18,8 +18,13 @@ fn main() -> Result<()> {
 
 fn run(src: &str) -> Result<()> {
     let scanner = Scanner::new(src);
-    let tree = Parser::new(scanner).parse()?;
-    lox::ast::dbg::tree::print_expr(&tree);
+    let (expr, errors) = Parser::new(scanner).parse();
+    for error in errors {
+        eprintln!("{}", error);
+    }
+    if let Some(tree) = expr {
+        lox::ast::dbg::tree::print_expr(&tree);
+    }
     Ok(())
 }
 
@@ -63,6 +68,10 @@ fn run_prompt() -> Result<()> {
                     invalid
                 ),
             }
+            continue;
+        }
+
+        if source.is_empty() {
             continue;
         }
 

@@ -12,6 +12,10 @@ impl Token {
     pub fn new(kind: TokenKind, span: Span) -> Self {
         Self { kind, span }
     }
+
+    pub fn dummy() -> Self {
+        Self::new(TokenKind::Dummy, Span::new(0, 0))
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -69,9 +73,16 @@ pub enum TokenKind {
 
 impl Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.kind.fmt(f)
+    }
+}
+
+impl Display for TokenKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use TokenKind::*;
-        match &self.kind {
-            Identifier(s) | String(s) => write!(f, "{}", s),
+        match self {
+            Identifier(s) => write!(f, "{}", s),
+            String(s) => write!(f, "\"{}\"", s),
             Number(n) => write!(f, "{}", n),
             Comment(s) => write!(f, "//{}", s),
             LeftParen => write!(f, "("),
