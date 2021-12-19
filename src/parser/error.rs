@@ -38,11 +38,11 @@ impl Display for ParseError {
                 writeln!(f, "{}", message)?;
                 write!(
                     f,
-                    "    Unexpected token {} at position {}",
+                    "    Unexpected token `{}` at position {}",
                     offending, offending.span
                 )?;
                 if let Some(expected) = expected {
-                    write!(f, "\n    Expected token {}", expected)?;
+                    write!(f, "\n    Expected token `{}`", expected)?;
                 }
                 Ok(())
             }
