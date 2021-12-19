@@ -34,7 +34,7 @@ fn run_file(file: impl AsRef<Path>) -> Result<()> {
 }
 
 fn run_prompt() -> Result<()> {
-    println!("Welcome to rs-lox. Enter Ctrl+D or `:exit` to exit.\n");
+    eprintln!("Welcome to rs-lox. Enter Ctrl+D or `:exit` to exit.\n");
     loop {
         print!("> ");
         stdout().flush()?;

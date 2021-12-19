@@ -2,11 +2,11 @@ pub mod tree {
     use crate::ast::expr::{Expr, ExprKind::*};
 
     pub fn print_expr(expr: &Expr) {
-        print_rec("Expr (phantom node)", [expr], "");
+        print_rec("Expr", [expr], "");
     }
 
     fn print_rec<const N: usize>(name: &str, exprs: [&Expr; N], indent: &str) {
-        println!("{} {}", indent, name);
+        eprintln!("{}{}", indent, name);
         let indent = &format!("{}    ", indent);
         for expr in exprs {
             match &expr.kind {
