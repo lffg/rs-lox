@@ -36,7 +36,11 @@ impl Display for ParseError {
                 expected,
             } => {
                 writeln!(f, "{}", message)?;
-                write!(f, "    Unexpected token {}", offending)?;
+                write!(
+                    f,
+                    "    Unexpected token {} at position {}",
+                    offending, offending.span
+                )?;
                 if let Some(expected) = expected {
                     write!(f, "\n    Expected token {}", expected)?;
                 }
@@ -48,7 +52,7 @@ impl Display for ParseError {
                 offending_span,
             } => {
                 writeln!(f, "{}", message)?;
-                write!(f, "    At {}", offending_span)?;
+                write!(f, "    At position {}", offending_span)?;
                 Ok(())
             }
         }
