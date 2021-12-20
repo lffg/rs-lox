@@ -121,6 +121,9 @@ impl Scanner<'_> {
             self.advance();
         }
         let name = self.lexme(0, 0);
+        if name == "NaN" {
+            return TokenKind::Number(f64::NAN);
+        }
         match LOX_KEYWORDS.get(name) {
             // Since keyword token kinds have no internal data, the following clone is cheap.
             Some(keyword_kind) => keyword_kind.clone(),

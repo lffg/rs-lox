@@ -8,7 +8,7 @@ pub fn print_tree(expr: &Expr, level: usize) {
         }
     match &expr.kind {
         Literal(lit) => {
-            emit!("Literal ({})", lit);
+            emit!("Literal ({} :: {})", lit.value, lit.value.type_name());
         }
         Group(g) => {
             emit!("Group");

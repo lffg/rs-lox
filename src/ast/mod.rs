@@ -1,4 +1,4 @@
-macro_rules! make_enum {
+macro_rules! make_ast_enum {
     ( $enum_name:ident, [ $( $variant:ident ),* $( , )? ] ) => {
         #[derive(Debug)]
         pub enum $enum_name {

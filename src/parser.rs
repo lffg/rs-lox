@@ -148,7 +148,7 @@ impl Parser<'_> {
             String(_) | Number(_) | True | False | Nil => {
                 let token = self.advance()?;
                 Ok(Expr {
-                    kind: ExprKind::from(Literal::from(token.kind.clone())),
+                    kind: Literal::from(token.clone()).into(),
                     span: token.span,
                 })
             }
@@ -159,7 +159,7 @@ impl Parser<'_> {
                     RightParen => {
                         let right_paren_span = self.advance()?.span;
                         Ok(Expr {
-                            kind: ExprKind::from(Group { expr }),
+                            kind: Group { expr }.into(),
                             span: left_paren_span.to(right_paren_span),
                         })
                     }
