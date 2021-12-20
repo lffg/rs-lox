@@ -34,5 +34,6 @@ lazy_static! {
         ("while", While),
         ("var", Var),
         ("print", Print),
+        ("typeof", Typeof)
     ]);
 }

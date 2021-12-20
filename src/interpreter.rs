@@ -86,6 +86,7 @@ impl Interpreter {
                 }),
             },
             TokenKind::Bang => Ok(LoxValue::Boolean(!lox_value_to_rust_bool(operand))),
+            TokenKind::Typeof => Ok(LoxValue::String(operand.type_name().into())),
             unexpected => unreachable!("Invalid unary operator ({:?}).", unexpected),
         }
     }

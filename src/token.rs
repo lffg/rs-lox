@@ -64,6 +64,7 @@ pub enum TokenKind {
     While,
     Var,
     Print,
+    Typeof,
 
     Eof,
 
@@ -120,6 +121,7 @@ impl Display for TokenKind {
             While => write!(f, "while"),
             Var => write!(f, "var"),
             Print => write!(f, "print"),
+            Typeof => write!(f, "typeof"),
 
             NewLine => write!(f, "<newline>"),
             Whitespace => write!(f, "<whitespace>"),
