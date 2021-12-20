@@ -33,7 +33,7 @@ impl Display for LoxValue {
                     n.fmt(f)
                 }
             }
-            String(s) => s.fmt(f),
+            String(s) => write!(f, "\"{}\"", s),
             Nil => f.write_str("nil"),
         }
     }
