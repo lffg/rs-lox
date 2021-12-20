@@ -25,7 +25,7 @@ fn run(src: &str) -> Result<()> {
         // lox::ast::dbg::print_tree(&tree, 0);
         let mut interpreter = Interpreter;
         match interpreter.interpret(&tree) {
-            Ok(lox_val) => eprintln!("{}", lox_val),
+            Ok(lox_val) => eprintln!("{:?}", lox_val),
             Err(error) => eprintln!("{}", error),
         }
     }
