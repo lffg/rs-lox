@@ -11,6 +11,10 @@ pub enum RuntimeError {
         message: String,
         operation_span: Span,
     },
+
+    ZeroDivision {
+        operation_span: Span,
+    },
 }
 
 impl Display for RuntimeError {
@@ -24,6 +28,12 @@ impl Display for RuntimeError {
                 operation_span,
             } => {
                 writeln!(f, "{}", message)?;
+                write!(f, "    At position {}", operation_span)?;
+                Ok(())
+            }
+
+            ZeroDivision { operation_span } => {
+                writeln!(f, "Can not divide by zero")?;
                 write!(f, "    At position {}", operation_span)?;
                 Ok(())
             }
