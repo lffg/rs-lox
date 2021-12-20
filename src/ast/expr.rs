@@ -13,13 +13,6 @@ pub struct Expr {
 
 make_enum!(ExprKind, [Literal, Group, Unary, Binary]);
 
-impl ExprKind {
-    /// Converts the `ExprKind` into an `Expr` given a span.
-    pub fn into_expr(self, span: Span) -> Expr {
-        Expr { kind: self, span }
-    }
-}
-
 #[derive(Debug)]
 pub enum Literal {
     Boolean(bool),

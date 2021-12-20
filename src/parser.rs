@@ -21,7 +21,7 @@ macro_rules! binary_expression {
                 operator,
                 right: right.into(),
             });
-            expr = kind.into_expr(span)
+            expr = Expr { kind, span };
         }
         Ok(expr)
     }};
