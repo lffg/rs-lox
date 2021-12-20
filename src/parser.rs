@@ -46,7 +46,7 @@ pub struct Parser<'src> {
 // comparison -> term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 // term       -> factor ( ( "+" | "-" ) factor )* ;
 // factor     -> unary ( ( "*" | "/" ) unary )* ;
-// unary      -> ( "typeof" | "!" | "-" ) unary | primary ;
+// unary      -> ( "show" | "typeof" | "!" | "-" ) unary | primary ;
 // primary    -> NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" ;
 // ```
 //
@@ -125,8 +125,8 @@ impl Parser<'_> {
     }
 
     fn parse_unary(&mut self) -> PResult<Expr> {
-        use TokenKind::{Bang, Minus, Typeof};
-        if let Bang | Minus | Typeof = self.current_token.kind {
+        use TokenKind::{Bang, Minus, Show, Typeof};
+        if let Bang | Minus | Typeof | Show = self.current_token.kind {
             let operator = self.advance()?.clone();
             let operand = self.parse_unary()?;
             let span = operator.span.to(operand.span);
