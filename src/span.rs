@@ -32,7 +32,7 @@ impl Span {
         let lo = self.lo as isize + lo;
         let hi = self.hi as isize + hi;
         assert!(lo >= 0, "New lower bound can't be negative.");
-        assert!(lo < hi, "New lower bound can't be greater than the higher.");
+        assert!(lo <= hi, "Lower bound can not pass the higher.");
         Span::new(lo as _, hi as _)
     }
 }
