@@ -1,5 +1,7 @@
 use crate::{
-    scanner::identifier::{is_valid_identifier_start, is_valid_identifier_tail, LOX_KEYWORDS},
+    parser::scanner::identifier::{
+        is_valid_identifier_start, is_valid_identifier_tail, LOX_KEYWORDS,
+    },
     span::Span,
     token::{Token, TokenKind},
 };

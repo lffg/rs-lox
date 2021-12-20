@@ -2,12 +2,15 @@ use std::{iter::Peekable, mem};
 
 use crate::{
     ast::expr::{Binary, Expr, ExprKind, Group, Literal, Unary},
-    parser::error::{PResult, ParseError},
-    scanner::Scanner,
+    parser::{
+        error::{PResult, ParseError},
+        scanner::Scanner,
+    },
     token::{Token, TokenKind},
 };
 
 mod error;
+mod scanner;
 
 macro_rules! binary_expression {
     ($self:expr, kinds = $( $kind:ident )|+, next_production = $next:ident) => {{
@@ -179,9 +182,9 @@ impl Parser<'_> {
 // The parser helper methods.
 impl<'src> Parser<'src> {
     /// Creates a new parser.
-    pub fn new(scanner: Scanner<'src>) -> Self {
+    pub fn new(src: &'src str) -> Self {
         Self {
-            scanner: scanner.peekable(),
+            scanner: Scanner::new(src).peekable(),
             current_token: Token::dummy(),
             prev_token: Token::dummy(),
             diagnostics: Vec::new(),

@@ -5,7 +5,7 @@ use std::{
 };
 
 use anyhow::Result;
-use lox::{parser::Parser, scanner::Scanner};
+use lox::parser::Parser;
 
 fn main() -> Result<()> {
     if let Some(script_file_name) = env::args().nth(1) {
@@ -17,8 +17,7 @@ fn main() -> Result<()> {
 }
 
 fn run(src: &str) -> Result<()> {
-    let scanner = Scanner::new(src);
-    let (expr, errors) = Parser::new(scanner).parse();
+    let (expr, errors) = Parser::new(src).parse();
     for error in errors {
         eprintln!("{}", error);
     }
