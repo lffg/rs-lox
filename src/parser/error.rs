@@ -8,8 +8,6 @@ use crate::{
     token::{Token, TokenKind},
 };
 
-pub type PResult<T> = Result<T, ParseError>;
-
 #[derive(Debug)]
 pub enum ParseError {
     UnexpectedToken {

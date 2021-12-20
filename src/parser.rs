@@ -2,15 +2,14 @@ use std::{iter::Peekable, mem};
 
 use crate::{
     ast::expr::{Binary, Expr, ExprKind, Group, Literal, Unary},
-    parser::{
-        error::{PResult, ParseError},
-        scanner::Scanner,
-    },
+    parser::{error::ParseError, scanner::Scanner},
     token::{Token, TokenKind},
 };
 
-mod error;
+pub mod error;
 mod scanner;
+
+type PResult<T> = Result<T, ParseError>;
 
 macro_rules! binary_expression {
     ($self:expr, kinds = $( $kind:ident )|+, next_production = $next:ident) => {{
