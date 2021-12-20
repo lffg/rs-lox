@@ -1,24 +1,27 @@
-pub mod tree {
-    use crate::ast::expr::{Expr, ExprKind::*};
+use crate::ast::expr::{Expr, ExprKind::*};
 
-    pub fn print_expr(expr: &Expr) {
-        print_rec("Expr", [expr], "");
-    }
-
-    fn print_rec<const N: usize>(name: &str, exprs: [&Expr; N], indent: &str) {
-        eprintln!("{}{}", indent, name);
-        let indent = &format!("{}    ", indent);
-        for expr in exprs {
-            match &expr.kind {
-                Literal(e) => print_rec(&format!("Literal ({})", e), [], indent),
-                Group(e) => print_rec("Group", [&e.expr], indent),
-                Unary(e) => print_rec(&format!("Unary (op: {})", e.operator), [&e.operand], indent),
-                Binary(e) => print_rec(
-                    &format!("Binary (op: {})", e.operator),
-                    [&e.left, &e.right],
-                    indent,
-                ),
-            }
+pub fn print_tree(expr: &Expr, level: usize) {
+    macro_rules! emit {
+            ( $( $arg:tt )* ) => {
+                println!("{}{}", " . ".repeat(level), format_args!($( $arg )*));
+            };
+        }
+    match &expr.kind {
+        Literal(lit) => {
+            emit!("Literal ({})", lit);
+        }
+        Group(g) => {
+            emit!("Group");
+            print_tree(&g.expr, level + 1);
+        }
+        Unary(u) => {
+            emit!("Unary {}", u.operator);
+            print_tree(&u.operand, level + 1);
+        }
+        Binary(b) => {
+            emit!("Binary {}", b.operator);
+            print_tree(&b.left, level + 1);
+            print_tree(&b.right, level + 1);
         }
     }
 }

@@ -23,7 +23,7 @@ fn run(src: &str) -> Result<()> {
         eprintln!("{}", error);
     }
     if let Some(tree) = expr {
-        lox::ast::dbg::tree::print_expr(&tree);
+        lox::ast::dbg::print_tree(&tree, 0);
     }
     Ok(())
 }
