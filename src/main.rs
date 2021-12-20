@@ -5,7 +5,7 @@ use std::{
 };
 
 use anyhow::Result;
-use lox::parser::Parser;
+use lox::{interpreter::Interpreter, parser::Parser};
 
 fn main() -> Result<()> {
     if let Some(script_file_name) = env::args().nth(1) {
@@ -22,7 +22,12 @@ fn run(src: &str) -> Result<()> {
         eprintln!("{}", error);
     }
     if let Some(tree) = expr {
-        lox::ast::dbg::print_tree(&tree, 0);
+        // lox::ast::dbg::print_tree(&tree, 0);
+        let mut interpreter = Interpreter;
+        match interpreter.interpret(&tree) {
+            Ok(lox_val) => eprintln!("{}", lox_val),
+            Err(error) => eprintln!("{}", error),
+        }
     }
     Ok(())
 }

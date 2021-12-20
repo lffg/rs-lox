@@ -1,6 +1,6 @@
 use std::fmt::{self, Display};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum LoxValue {
     Boolean(bool),
     Number(f64),
