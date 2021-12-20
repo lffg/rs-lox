@@ -51,7 +51,10 @@ impl From<Token> for Literal {
                 T::Nil => L::Nil,
                 T::True => L::Boolean(true),
                 T::False => L::Boolean(false),
-                _ => panic!("Invalid `Token` to `Literal` conversion. This is a bug."),
+                unexpected => unreachable!(
+                    "Invalid `Token` ({:?}) to `Literal` conversion.",
+                    unexpected
+                ),
             },
             token,
         }
