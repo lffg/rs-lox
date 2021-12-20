@@ -113,10 +113,12 @@ impl Interpreter {
             TokenKind::Minus => bin_op_num!(left - right, binary.operator),
             TokenKind::Star => bin_op_num!(left * right, binary.operator),
             TokenKind::Slash => {
-                if let Number(0.0) = right {
-                    return Err(RuntimeError::ZeroDivision {
-                        operation_span: binary.operator.span,
-                    });
+                if let Number(right_num) = right {
+                    if right_num == 0.0 {
+                        return Err(RuntimeError::ZeroDivision {
+                            operation_span: binary.operator.span,
+                        });
+                    }
                 }
                 bin_op_num!(left / right, binary.operator)
             }
