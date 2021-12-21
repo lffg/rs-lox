@@ -17,16 +17,17 @@ fn main() -> Result<()> {
 }
 
 fn run(src: &str) -> Result<()> {
-    let (expr, errors) = Parser::new(src).parse();
-    for error in errors {
-        eprintln!("{}", error);
-    }
-    if let Some(tree) = expr {
-        // lox::ast::dbg::print_tree(&tree, 0);
+    let (stmts, errors) = Parser::new(src).parse();
+
+    if !errors.is_empty() {
+        assert!(stmts.is_empty());
+        for error in errors {
+            eprintln!("{}", error);
+        }
+    } else {
         let mut interpreter = Interpreter;
-        match interpreter.interpret(&tree) {
-            Ok(lox_val) => eprintln!("{:?}", lox_val),
-            Err(error) => eprintln!("{}", error),
+        if let Err(error) = interpreter.interpret(&stmts) {
+            eprintln!("{}", error);
         }
     }
     Ok(())

@@ -1,7 +1,10 @@
 use std::{iter::Peekable, mem};
 
 use crate::{
-    ast::expr::{Binary, Expr, ExprKind, Group, Literal, Unary},
+    ast::{
+        expr::{self, Expr, ExprKind},
+        stmt::{self, Stmt},
+    },
     parser::{error::ParseError, scanner::Scanner},
     token::{Token, TokenKind},
 };
@@ -18,7 +21,7 @@ macro_rules! binary_expression {
             let operator = $self.advance()?.clone();
             let right = $self.$next()?;
             let span = expr.span.to(right.span);
-            let kind = ExprKind::from(Binary {
+            let kind = ExprKind::from(expr::Binary {
                 left: expr.into(),
                 operator,
                 right: right.into(),
@@ -41,6 +44,14 @@ pub struct Parser<'src> {
 // # Grammar:
 //
 // ```none
+// program    -> statement* EOF
+//
+// statement  -> expr_stmt
+//             | print_stmt ;
+//
+// expr_stmt  -> expression ";" ;
+// print_stmt -> "print" expression ";" ;
+//
 // expression -> equality
 // equality   -> comparison ( ( "==" | "!=" ) comparison )* ;
 // comparison -> term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
@@ -52,38 +63,64 @@ pub struct Parser<'src> {
 //
 // Each production has a correspondent method in the following implementation.
 impl Parser<'_> {
-    pub fn parse(mut self) -> (Option<Expr>, Vec<ParseError>) {
+    pub fn parse(mut self) -> (Vec<Stmt>, Vec<ParseError>) {
         // The first advancement:
         if let Err(err) = self.advance() {
             self.synchronize_with(err);
         }
 
-        // Allow an empty expression
-        if self.current_token.kind == TokenKind::Eof {
-            return (None, self.diagnostics);
-        }
-
-        // THIS IS TEMPORARY, WILL BE REMOVED SOON.
-        let expr = match self.temp_parse_finished_expression() {
-            Ok(expr) => Some(expr),
-            Err(err) => {
-                self.synchronize_with(err);
-                assert_eq!(self.current_token.kind, TokenKind::Eof);
-                None
+        let mut stmts = Vec::new();
+        while !self.is_at_end() {
+            match self.parse_statement() {
+                Ok(stmt) => stmts.push(stmt),
+                Err(error) => self.synchronize_with(error),
             }
-        };
-        (expr, self.diagnostics)
+        }
+        (stmts, self.diagnostics)
     }
 
-    // THIS IS TEMPORARY, WILL BE REMOVED SOON.
-    fn temp_parse_finished_expression(&mut self) -> PResult<Expr> {
+    fn parse_statement(&mut self) -> PResult<Stmt> {
+        use TokenKind::Print;
+        if let Print = self.current_token.kind {
+            self.advance()?;
+            return self.parse_print_stmt();
+        }
+
+        self.parse_expression_stmt()
+    }
+
+    fn parse_print_stmt(&mut self) -> PResult<Stmt> {
         let expr = self.parse_expression()?;
         match self.current_token.kind {
-            TokenKind::Eof => Ok(expr),
+            TokenKind::Semicolon => {
+                let semicolon_span = self.advance()?.span;
+                Ok(Stmt {
+                    span: expr.span.to(semicolon_span),
+                    kind: stmt::Print { expr }.into(),
+                })
+            }
             _ => Err(ParseError::UnexpectedToken {
-                message: "Expected end of input".into(),
+                message: "Expected `;` after value".into(),
                 offending: self.current_token.clone(),
-                expected: Some(TokenKind::Eof),
+                expected: Some(TokenKind::Semicolon),
+            }),
+        }
+    }
+
+    fn parse_expression_stmt(&mut self) -> PResult<Stmt> {
+        let expr = self.parse_expression()?;
+        match self.current_token.kind {
+            TokenKind::Semicolon => {
+                let semicolon_span = self.advance()?.span;
+                Ok(Stmt {
+                    span: expr.span.to(semicolon_span),
+                    kind: stmt::Expr { expr }.into(),
+                })
+            }
+            _ => Err(ParseError::UnexpectedToken {
+                message: "Expected `;` after expression".into(),
+                offending: self.current_token.clone(),
+                expected: Some(TokenKind::Semicolon),
             }),
         }
     }
@@ -131,7 +168,7 @@ impl Parser<'_> {
             let operand = self.parse_unary()?;
             let span = operator.span.to(operand.span);
             return Ok(Expr {
-                kind: ExprKind::from(Unary {
+                kind: ExprKind::from(expr::Unary {
                     operator,
                     operand: operand.into(),
                 }),
@@ -147,7 +184,7 @@ impl Parser<'_> {
             String(_) | Number(_) | True | False | Nil => {
                 let token = self.advance()?;
                 Ok(Expr {
-                    kind: Literal::from(token.clone()).into(),
+                    kind: expr::Literal::from(token.clone()).into(),
                     span: token.span,
                 })
             }
@@ -158,7 +195,7 @@ impl Parser<'_> {
                     RightParen => {
                         let right_paren_span = self.advance()?.span;
                         Ok(Expr {
-                            kind: Group { expr }.into(),
+                            kind: expr::Group { expr }.into(),
                             span: left_paren_span.to(right_paren_span),
                         })
                     }

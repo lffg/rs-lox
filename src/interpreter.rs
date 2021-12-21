@@ -1,5 +1,8 @@
 use crate::{
-    ast::expr::{self, Expr, ExprKind},
+    ast::{
+        expr::{self, Expr, ExprKind},
+        stmt::{self, Stmt, StmtKind},
+    },
     interpreter::error::RuntimeError,
     token::TokenKind,
     value::LoxValue,
@@ -50,29 +53,59 @@ pub struct Interpreter;
 
 // The interpreter implementation.
 impl Interpreter {
-    pub fn interpret(&mut self, expr: &Expr) -> IResult<LoxValue> {
-        self.eval_expr(expr)
+    pub fn interpret(&mut self, stmts: &[Stmt]) -> IResult<()> {
+        for stmt in stmts {
+            self.eval_stmt(stmt)?;
+        }
+        Ok(())
     }
+
+    //
+    // Statements
+    //
+
+    fn eval_stmt(&mut self, stmt: &Stmt) -> IResult<()> {
+        use StmtKind::*;
+        match &stmt.kind {
+            Expr(expr) => self.eval_expr_stmt(expr),
+            Print(print) => self.eval_print_stmt(print),
+        }
+    }
+
+    fn eval_print_stmt(&mut self, stmt: &stmt::Print) -> IResult<()> {
+        let val = self.eval_expr(&stmt.expr)?;
+        println!("{}", val);
+        Ok(())
+    }
+
+    fn eval_expr_stmt(&mut self, stmt: &stmt::Expr) -> IResult<()> {
+        self.eval_expr(&stmt.expr)?;
+        Ok(())
+    }
+
+    //
+    // Expressions
+    //
 
     fn eval_expr(&mut self, expr: &Expr) -> IResult<LoxValue> {
         use ExprKind::*;
         match &expr.kind {
-            Literal(lit) => self.eval_lit(lit),
-            Group(group) => self.eval_group(group),
-            Unary(unary) => self.eval_unary(unary),
-            Binary(binary) => self.eval_binary(binary),
+            Literal(literal) => self.eval_literal_expr(literal),
+            Group(group) => self.eval_group_expr(group),
+            Unary(unary) => self.eval_unary_expr(unary),
+            Binary(binary) => self.eval_binary_expr(binary),
         }
     }
 
-    fn eval_lit(&mut self, lit: &expr::Literal) -> IResult<LoxValue> {
+    fn eval_literal_expr(&mut self, lit: &expr::Literal) -> IResult<LoxValue> {
         Ok(lit.value.clone())
     }
 
-    fn eval_group(&mut self, group: &expr::Group) -> IResult<LoxValue> {
-        self.interpret(&group.expr)
+    fn eval_group_expr(&mut self, group: &expr::Group) -> IResult<LoxValue> {
+        self.eval_expr(&group.expr)
     }
 
-    fn eval_unary(&mut self, unary: &expr::Unary) -> IResult<LoxValue> {
+    fn eval_unary_expr(&mut self, unary: &expr::Unary) -> IResult<LoxValue> {
         let operand = self.eval_expr(&unary.operand)?;
         match &unary.operator.kind {
             TokenKind::Minus => match operand {
@@ -92,7 +125,7 @@ impl Interpreter {
         }
     }
 
-    fn eval_binary(&mut self, binary: &expr::Binary) -> IResult<LoxValue> {
+    fn eval_binary_expr(&mut self, binary: &expr::Binary) -> IResult<LoxValue> {
         use LoxValue::*;
         let left = self.eval_expr(&binary.left)?;
         let right = self.eval_expr(&binary.right)?;

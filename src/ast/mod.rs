@@ -22,3 +22,4 @@ macro_rules! make_ast_enum {
 
 pub mod dbg;
 pub mod expr;
+pub mod stmt;
