@@ -11,11 +11,15 @@ impl TreePrinter {
         match &stmt.kind {
             Expr(expr) => {
                 self.emit("Expr Stmt");
-                self.bump_print_expr(&expr.expr);
+                self.nest(|s| {
+                    s.print_expr(&expr.expr);
+                });
             }
             Print(print) => {
                 self.emit("Print Stmt");
-                self.bump_print_expr(&print.expr);
+                self.nest(|s| {
+                    s.print_expr(&print.expr);
+                });
             }
         }
     }
@@ -28,28 +32,24 @@ impl TreePrinter {
             }
             Group(group) => {
                 self.emit("Group");
-                self.bump_print_expr(&group.expr);
+                self.nest(|s| {
+                    s.print_expr(&group.expr);
+                });
             }
             Unary(unary) => {
-                self.emit("Unary {}");
-                self.bump_print_expr(&unary.operand);
+                self.emit(format!("Unary {}", unary.operator));
+                self.nest(|s| {
+                    s.print_expr(&unary.operand);
+                });
             }
             Binary(binary) => {
-                self.emit("Binary {}");
-                self.bump_print_expr(&binary.left);
-                self.bump_print_expr(&binary.right);
+                self.emit(format!("Binary {}", binary.operator));
+                self.nest(|s| {
+                    s.print_expr(&binary.left);
+                    s.print_expr(&binary.right);
+                });
             }
         }
-    }
-
-    fn _bump_print_stmt(&mut self, stmt: &stmt::Stmt) {
-        self.level += 1;
-        self.print_stmt(stmt);
-    }
-
-    fn bump_print_expr(&mut self, expr: &expr::Expr) {
-        self.level += 1;
-        self.print_expr(expr);
     }
 
     pub fn new(prefix: &'static str) -> Self {
@@ -58,5 +58,11 @@ impl TreePrinter {
 
     fn emit(&self, str: impl Into<String>) {
         println!("{}{}{}", self.prefix, " . ".repeat(self.level), str.into());
+    }
+
+    fn nest<S: FnOnce(&mut Self)>(&mut self, scope: S) {
+        self.level += 1;
+        scope(self);
+        self.level -= 1;
     }
 }

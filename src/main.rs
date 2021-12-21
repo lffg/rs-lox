@@ -9,7 +9,7 @@ use lox::{ast::dbg::TreePrinter, interpreter::Interpreter, parser::Parser};
 
 fn main() -> Result<()> {
     if let Some(script_file_name) = env::args().nth(1) {
-        run_file(script_file_name)?;
+        run_file(script_file_name, false)?;
     } else {
         run_prompt()?;
     }
@@ -30,9 +30,9 @@ fn run(src: &str, show_tree: bool) -> Result<()> {
         let mut interpreter = Interpreter;
         if show_tree {
             for stmt in &stmts {
-                println!("┌─");
+                println!(/*   */ "┌─");
                 TreePrinter::new("│ ").print_stmt(stmt);
-                println!("└─")
+                println!(/*   */ "└─")
             }
         }
         if let Err(error) = interpreter.interpret(&stmts) {
@@ -42,9 +42,9 @@ fn run(src: &str, show_tree: bool) -> Result<()> {
     Ok(())
 }
 
-fn run_file(file: impl AsRef<Path>) -> Result<()> {
+fn run_file(file: impl AsRef<Path>, show_tree: bool) -> Result<()> {
     let source = fs::read_to_string(file)?;
-    run(&source, false)
+    run(&source, show_tree)
 }
 
 fn run_prompt() -> Result<()> {
@@ -74,7 +74,7 @@ fn run_prompt() -> Result<()> {
                 "eval" => {
                     for file in &cmd[1..] {
                         eprintln!("Evaluating `{}`...", file);
-                        if let Err(err) = run_file(file) {
+                        if let Err(err) = run_file(file, show_tree) {
                             eprintln!("  error: {}", err);
                         }
                     }
