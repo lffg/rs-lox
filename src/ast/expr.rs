@@ -10,10 +10,10 @@ pub struct Expr {
     pub span: Span,
 }
 
-make_ast_enum!(ExprKind, [Literal, Group, Unary, Binary]);
+make_ast_enum!(ExprKind, [Lit, Group, Unary, Binary]);
 
 #[derive(Debug)]
-pub struct Literal {
+pub struct Lit {
     pub token: Token,
     pub value: LoxValue,
 }
@@ -40,11 +40,11 @@ pub struct Binary {
 // Some other utilities.
 //
 
-impl From<Token> for Literal {
+impl From<Token> for Lit {
     fn from(token: Token) -> Self {
         use LoxValue as L;
         use TokenKind as T;
-        Literal {
+        Lit {
             value: match &token.kind {
                 T::String(string) => L::String(string.clone()),
                 T::Number(number) => L::Number(*number),

@@ -90,14 +90,14 @@ impl Interpreter {
     fn eval_expr(&mut self, expr: &Expr) -> IResult<LoxValue> {
         use ExprKind::*;
         match &expr.kind {
-            Literal(literal) => self.eval_literal_expr(literal),
+            Lit(lit) => self.eval_lit_expr(lit),
             Group(group) => self.eval_group_expr(group),
             Unary(unary) => self.eval_unary_expr(unary),
             Binary(binary) => self.eval_binary_expr(binary),
         }
     }
 
-    fn eval_literal_expr(&mut self, lit: &expr::Literal) -> IResult<LoxValue> {
+    fn eval_lit_expr(&mut self, lit: &expr::Lit) -> IResult<LoxValue> {
         Ok(lit.value.clone())
     }
 

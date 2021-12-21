@@ -14,19 +14,21 @@ mod scanner;
 
 type PResult<T> = Result<T, ParseError>;
 
-macro_rules! binary_expression {
+/// Parses a binary expression.
+macro_rules! bin_expr {
     ($self:expr, kinds = $( $kind:ident )|+, next_production = $next:ident) => {{
         let mut expr = $self.$next()?;
         while let $( TokenKind::$kind )|+ = $self.current_token.kind {
             let operator = $self.advance()?.clone();
             let right = $self.$next()?;
-            let span = expr.span.to(right.span);
-            let kind = ExprKind::from(expr::Binary {
-                left: expr.into(),
-                operator,
-                right: right.into(),
-            });
-            expr = Expr { kind, span };
+            expr = Expr {
+                span: expr.span.to(right.span),
+                kind: ExprKind::from(expr::Binary {
+                    left: expr.into(),
+                    operator,
+                    right: right.into(),
+                }),
+            };
         }
         Ok(expr)
     }};
@@ -44,21 +46,21 @@ pub struct Parser<'src> {
 // # Grammar:
 //
 // ```none
-// program    -> statement* EOF
+// program    -> stmt* EOF
 //
-// statement  -> expr_stmt
+// stmt       -> expr_stmt
 //             | print_stmt ;
 //
-// expr_stmt  -> expression ";" ;
-// print_stmt -> "print" expression ";" ;
+// expr_stmt  -> expr ";" ;
+// print_stmt -> "print" expr ";" ;
 //
-// expression -> equality
+// expr       -> equality
 // equality   -> comparison ( ( "==" | "!=" ) comparison )* ;
 // comparison -> term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 // term       -> factor ( ( "+" | "-" ) factor )* ;
 // factor     -> unary ( ( "*" | "/" ) unary )* ;
 // unary      -> ( "show" | "typeof" | "!" | "-" ) unary | primary ;
-// primary    -> NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" ;
+// primary    -> NUMBER | STRING | "true" | "false" | "nil" | "(" expr ")" ;
 // ```
 //
 // Each production has a correspondent method in the following implementation.
@@ -71,7 +73,7 @@ impl Parser<'_> {
 
         let mut stmts = Vec::new();
         while !self.is_at_end() {
-            match self.parse_statement() {
+            match self.parse_stmt() {
                 Ok(stmt) => stmts.push(stmt),
                 Err(error) => self.synchronize_with(error),
             }
@@ -79,58 +81,42 @@ impl Parser<'_> {
         (stmts, self.diagnostics)
     }
 
-    fn parse_statement(&mut self) -> PResult<Stmt> {
-        use TokenKind::Print;
-        if let Print = self.current_token.kind {
-            self.advance()?;
+    fn parse_stmt(&mut self) -> PResult<Stmt> {
+        if self.is(TokenKind::Print)? {
             return self.parse_print_stmt();
         }
 
-        self.parse_expression_stmt()
+        self.parse_expr_stmt()
     }
 
     fn parse_print_stmt(&mut self) -> PResult<Stmt> {
-        let expr = self.parse_expression()?;
-        match self.current_token.kind {
-            TokenKind::Semicolon => {
-                let semicolon_span = self.advance()?.span;
-                Ok(Stmt {
-                    span: expr.span.to(semicolon_span),
-                    kind: stmt::Print { expr }.into(),
-                })
-            }
-            _ => Err(ParseError::UnexpectedToken {
-                message: "Expected `;` after value".into(),
-                offending: self.current_token.clone(),
-                expected: Some(TokenKind::Semicolon),
-            }),
-        }
+        let expr = self.parse_expr()?;
+        let semicolon_span = self
+            .consume(TokenKind::Semicolon, "Expected `;` after value")?
+            .span;
+        Ok(Stmt {
+            span: expr.span.to(semicolon_span),
+            kind: stmt::Print { expr }.into(),
+        })
     }
 
-    fn parse_expression_stmt(&mut self) -> PResult<Stmt> {
-        let expr = self.parse_expression()?;
-        match self.current_token.kind {
-            TokenKind::Semicolon => {
-                let semicolon_span = self.advance()?.span;
-                Ok(Stmt {
-                    span: expr.span.to(semicolon_span),
-                    kind: stmt::Expr { expr }.into(),
-                })
-            }
-            _ => Err(ParseError::UnexpectedToken {
-                message: "Expected `;` after expression".into(),
-                offending: self.current_token.clone(),
-                expected: Some(TokenKind::Semicolon),
-            }),
-        }
+    fn parse_expr_stmt(&mut self) -> PResult<Stmt> {
+        let expr = self.parse_expr()?;
+        let semicolon_span = self
+            .consume(TokenKind::Semicolon, "Expected `;` after expression")?
+            .span;
+        Ok(Stmt {
+            span: expr.span.to(semicolon_span),
+            kind: stmt::Expr { expr }.into(),
+        })
     }
 
-    fn parse_expression(&mut self) -> PResult<Expr> {
+    fn parse_expr(&mut self) -> PResult<Expr> {
         self.parse_equality()
     }
 
     fn parse_equality(&mut self) -> PResult<Expr> {
-        binary_expression!(
+        bin_expr!(
             self,
             kinds = EqualEqual | BangEqual,
             next_production = parse_comparison
@@ -138,7 +124,7 @@ impl Parser<'_> {
     }
 
     fn parse_comparison(&mut self) -> PResult<Expr> {
-        binary_expression!(
+        bin_expr!(
             self,
             kinds = Greater | GreaterEqual | Less | LessEqual,
             next_production = parse_term
@@ -146,7 +132,7 @@ impl Parser<'_> {
     }
 
     fn parse_term(&mut self) -> PResult<Expr> {
-        binary_expression!(
+        bin_expr!(
             self, //↵
             kinds = Plus | Minus,
             next_production = parse_factor
@@ -154,7 +140,7 @@ impl Parser<'_> {
     }
 
     fn parse_factor(&mut self) -> PResult<Expr> {
-        binary_expression!(
+        bin_expr!(
             self, //↵
             kinds = Star | Slash,
             next_production = parse_unary
@@ -166,13 +152,12 @@ impl Parser<'_> {
         if let Bang | Minus | Typeof | Show = self.current_token.kind {
             let operator = self.advance()?.clone();
             let operand = self.parse_unary()?;
-            let span = operator.span.to(operand.span);
             return Ok(Expr {
+                span: operator.span.to(operand.span),
                 kind: ExprKind::from(expr::Unary {
                     operator,
                     operand: operand.into(),
                 }),
-                span,
             });
         }
         self.parse_primary()
@@ -184,27 +169,20 @@ impl Parser<'_> {
             String(_) | Number(_) | True | False | Nil => {
                 let token = self.advance()?;
                 Ok(Expr {
-                    kind: expr::Literal::from(token.clone()).into(),
+                    kind: expr::Lit::from(token.clone()).into(),
                     span: token.span,
                 })
             }
             LeftParen => {
                 let left_paren_span = self.advance()?.span;
-                let expr = self.parse_expression()?.into();
-                match self.current_token.kind {
-                    RightParen => {
-                        let right_paren_span = self.advance()?.span;
-                        Ok(Expr {
-                            kind: expr::Group { expr }.into(),
-                            span: left_paren_span.to(right_paren_span),
-                        })
-                    }
-                    _ => Err(ParseError::UnexpectedToken {
-                        message: "Expected group to be closed".into(),
-                        offending: self.current_token.clone(),
-                        expected: Some(TokenKind::RightParen),
-                    }),
-                }
+                let expr = self.parse_expr()?.into();
+                let right_paren_span = self
+                    .consume(RightParen, "Expected group to be closed")?
+                    .span;
+                Ok(Expr {
+                    kind: expr::Group { expr }.into(),
+                    span: left_paren_span.to(right_paren_span),
+                })
             }
             _ => Err(ParseError::UnexpectedToken {
                 message: "Expected any expression".into(),
@@ -256,6 +234,33 @@ impl<'src> Parser<'src> {
             }
         };
         self.prev_token = mem::replace(&mut self.current_token, next);
+    }
+
+    /// Checks if the current token matches the expected one. If so, advances and returns true.
+    /// Otherwise returns false. Such cases are `Ok(bool)`.
+    ///
+    /// Returns `Err` in case of advancement error.
+    fn is(&mut self, expected: TokenKind) -> PResult<bool> {
+        if self.current_token.kind == expected {
+            self.advance()?;
+            return Ok(true);
+        }
+        Ok(false)
+    }
+
+    /// Checks if the current token matches the expected one. If so, advances and returns the
+    /// consumed token. Otherwise returns an expectation error with the given message.
+    /// Also returns `Err` in case of advancement error.
+    fn consume(&mut self, expected: TokenKind, msg: impl Into<String>) -> PResult<&Token> {
+        if self.current_token.kind == expected {
+            self.advance()
+        } else {
+            Err(ParseError::UnexpectedToken {
+                message: msg.into(),
+                offending: self.current_token.clone(),
+                expected: Some(expected),
+            })
+        }
     }
 
     /// Synchronizes the parser state with the current token.
