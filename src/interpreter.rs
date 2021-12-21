@@ -12,43 +12,6 @@ pub mod error;
 
 type IResult<T> = Result<T, RuntimeError>;
 
-macro_rules! bin_op_num {
-    ( $left:tt $op:tt $right:tt, $op_token:expr ) => {
-        match ($left, $right) {
-            (Number(left), Number(right)) => Ok(Number(left $op right)),
-            (left, right) => Err(RuntimeError::UnsupportedType {
-                message: format!(
-                    "Binary `{}` operator can only operate over two numbers. \
-                    Got types `{}` and `{}`",
-                    stringify!($op),
-                    left.type_name(),
-                    right.type_name()
-                ),
-                operation_span: $op_token.span
-            }),
-        }
-    };
-}
-
-macro_rules! bin_op_cmp {
-    ( $left:tt $op:tt $right:tt, $op_token:expr ) => {
-        match ($left, $right) {
-            (Number(left), Number(right)) => Ok(LoxValue::Boolean(left $op right)),
-            (String(left), String(right)) => Ok(LoxValue::Boolean(left $op right)),
-            (left, right) => Err(RuntimeError::UnsupportedType {
-                message: format!(
-                    "Binary `{}` operator can only compare two numbers or two strings. \
-                    Got types `{}` and `{}`",
-                    stringify!($op),
-                    left.type_name(),
-                    right.type_name()
-                ),
-                operation_span: $op_token.span,
-            }),
-        }
-    };
-}
-
 pub struct Interpreter;
 
 // The interpreter implementation.
@@ -144,8 +107,8 @@ impl Interpreter {
                 }),
             },
 
-            TokenKind::Minus => bin_op_num!(left - right, binary.operator),
-            TokenKind::Star => bin_op_num!(left * right, binary.operator),
+            TokenKind::Minus => bin_number_operator!(left - right, binary.operator),
+            TokenKind::Star => bin_number_operator!(left * right, binary.operator),
             TokenKind::Slash => {
                 if let Number(right_num) = right {
                     if right_num == 0.0 {
@@ -154,16 +117,16 @@ impl Interpreter {
                         });
                     }
                 }
-                bin_op_num!(left / right, binary.operator)
+                bin_number_operator!(left / right, binary.operator)
             }
 
             TokenKind::EqualEqual => Ok(LoxValue::Boolean(lox_value_equal(&left, &right))),
             TokenKind::BangEqual => Ok(LoxValue::Boolean(!lox_value_equal(&left, &right))),
 
-            TokenKind::Greater => bin_op_cmp!(left > right, binary.operator),
-            TokenKind::GreaterEqual => bin_op_cmp!(left >= right, binary.operator),
-            TokenKind::Less => bin_op_cmp!(left < right, binary.operator),
-            TokenKind::LessEqual => bin_op_cmp!(left <= right, binary.operator),
+            TokenKind::Greater => bin_comparison_operator!(left > right, binary.operator),
+            TokenKind::GreaterEqual => bin_comparison_operator!(left >= right, binary.operator),
+            TokenKind::Less => bin_comparison_operator!(left < right, binary.operator),
+            TokenKind::LessEqual => bin_comparison_operator!(left <= right, binary.operator),
 
             unexpected => unreachable!("Invalid binary operator ({:?}).", unexpected),
         }
@@ -197,3 +160,42 @@ fn lox_value_equal(a: &LoxValue, b: &LoxValue) -> bool {
         _ => false,
     }
 }
+
+macro_rules! bin_number_operator {
+    ( $left:tt $op:tt $right:tt, $op_token:expr ) => {
+        match ($left, $right) {
+            (Number(left), Number(right)) => Ok(Number(left $op right)),
+            (left, right) => Err(RuntimeError::UnsupportedType {
+                message: format!(
+                    "Binary `{}` operator can only operate over two numbers. \
+                    Got types `{}` and `{}`",
+                    stringify!($op),
+                    left.type_name(),
+                    right.type_name()
+                ),
+                operation_span: $op_token.span
+            }),
+        }
+    };
+}
+use bin_number_operator;
+
+macro_rules! bin_comparison_operator {
+    ( $left:tt $op:tt $right:tt, $op_token:expr ) => {
+        match ($left, $right) {
+            (Number(left), Number(right)) => Ok(LoxValue::Boolean(left $op right)),
+            (String(left), String(right)) => Ok(LoxValue::Boolean(left $op right)),
+            (left, right) => Err(RuntimeError::UnsupportedType {
+                message: format!(
+                    "Binary `{}` operator can only compare two numbers or two strings. \
+                    Got types `{}` and `{}`",
+                    stringify!($op),
+                    left.type_name(),
+                    right.type_name()
+                ),
+                operation_span: $op_token.span,
+            }),
+        }
+    };
+}
+use bin_comparison_operator;

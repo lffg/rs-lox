@@ -8,8 +8,8 @@ pub enum LoxValue {
     Nil,
 }
 
-// Utilities.
 impl LoxValue {
+    /// Returns the canonical type name.
     pub fn type_name(&self) -> &'static str {
         use LoxValue::*;
         match self {

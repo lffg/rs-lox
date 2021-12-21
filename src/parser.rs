@@ -14,26 +14,6 @@ mod scanner;
 
 type PResult<T> = Result<T, ParseError>;
 
-/// Parses a binary expression.
-macro_rules! bin_expr {
-    ($self:expr, kinds = $( $kind:ident )|+, next_production = $next:ident) => {{
-        let mut expr = $self.$next()?;
-        while let $( TokenKind::$kind )|+ = $self.current_token.kind {
-            let operator = $self.advance()?.clone();
-            let right = $self.$next()?;
-            expr = Expr {
-                span: expr.span.to(right.span),
-                kind: ExprKind::from(expr::Binary {
-                    left: expr.into(),
-                    operator,
-                    right: right.into(),
-                }),
-            };
-        }
-        Ok(expr)
-    }};
-}
-
 pub struct Parser<'src> {
     scanner: Peekable<Scanner<'src>>,
     current_token: Token,
@@ -308,3 +288,24 @@ impl<'src> Parser<'src> {
         self.current_token.kind == TokenKind::Eof
     }
 }
+
+/// Parses a binary expression.
+macro_rules! bin_expr {
+    ($self:expr, kinds = $( $kind:ident )|+, next_production = $next:ident) => {{
+        let mut expr = $self.$next()?;
+        while let $( TokenKind::$kind )|+ = $self.current_token.kind {
+            let operator = $self.advance()?.clone();
+            let right = $self.$next()?;
+            expr = Expr {
+                span: expr.span.to(right.span),
+                kind: ExprKind::from(expr::Binary {
+                    left: expr.into(),
+                    operator,
+                    right: right.into(),
+                }),
+            };
+        }
+        Ok(expr)
+    }};
+}
+use bin_expr;
