@@ -5,11 +5,12 @@ use crate::{
         expr::{self, Expr, ExprKind},
         stmt::{self, Stmt},
     },
-    parser::{error::ParseError, scanner::Scanner},
+    parser::{error::ParseError, options::ParserOptions, scanner::Scanner},
     token::{Token, TokenKind},
 };
 
 pub mod error;
+pub mod options;
 mod scanner;
 
 type PResult<T> = Result<T, ParseError>;
@@ -19,6 +20,7 @@ pub struct Parser<'src> {
     current_token: Token,
     prev_token: Token,
     diagnostics: Vec<ParseError>,
+    pub options: ParserOptions,
 }
 
 // The parser implementation.
@@ -62,7 +64,7 @@ impl Parser<'_> {
     }
 
     fn parse_stmt(&mut self) -> PResult<Stmt> {
-        if self.is(TokenKind::Print)? {
+        if self.take(TokenKind::Print)? {
             return self.parse_print_stmt();
         }
 
@@ -76,12 +78,22 @@ impl Parser<'_> {
             .span;
         Ok(Stmt {
             span: expr.span.to(semicolon_span),
-            kind: stmt::Print { expr }.into(),
+            kind: stmt::Print { expr, debug: false }.into(),
         })
     }
 
     fn parse_expr_stmt(&mut self) -> PResult<Stmt> {
         let expr = self.parse_expr()?;
+
+        // If the parser is running in the REPL mode and the next token is of kind `Eof`, it will
+        // emit a `Print` statement in order to show the given expression's value.
+        if self.options.repl_mode && self.is_at_end() {
+            return Ok(Stmt {
+                span: expr.span,
+                kind: stmt::Print { expr, debug: true }.into(),
+            });
+        }
+
         let semicolon_span = self
             .consume(TokenKind::Semicolon, "Expected `;` after expression")?
             .span;
@@ -182,6 +194,7 @@ impl<'src> Parser<'src> {
             current_token: Token::dummy(),
             prev_token: Token::dummy(),
             diagnostics: Vec::new(),
+            options: Default::default(),
         }
     }
 
@@ -220,7 +233,7 @@ impl<'src> Parser<'src> {
     /// Otherwise returns false. Such cases are `Ok(bool)`.
     ///
     /// Returns `Err` in case of advancement error.
-    fn is(&mut self, expected: TokenKind) -> PResult<bool> {
+    fn take(&mut self, expected: TokenKind) -> PResult<bool> {
         if self.current_token.kind == expected {
             self.advance()?;
             return Ok(true);

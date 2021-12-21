@@ -35,14 +35,17 @@ impl Interpreter {
         }
     }
 
-    fn eval_print_stmt(&mut self, stmt: &stmt::Print) -> IResult<()> {
-        let val = self.eval_expr(&stmt.expr)?;
-        println!("{}", val);
+    fn eval_print_stmt(&mut self, print: &stmt::Print) -> IResult<()> {
+        let val = self.eval_expr(&print.expr)?;
+        match print.debug {
+            true => println!("{:?}", val),
+            false => println!("{}", val),
+        }
         Ok(())
     }
 
-    fn eval_expr_stmt(&mut self, stmt: &stmt::Expr) -> IResult<()> {
-        self.eval_expr(&stmt.expr)?;
+    fn eval_expr_stmt(&mut self, expr: &stmt::Expr) -> IResult<()> {
+        self.eval_expr(&expr.expr)?;
         Ok(())
     }
 

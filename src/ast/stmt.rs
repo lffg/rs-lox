@@ -16,4 +16,5 @@ pub struct Expr {
 #[derive(Debug)]
 pub struct Print {
     pub expr: AstExpr,
+    pub debug: bool,
 }

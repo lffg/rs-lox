@@ -17,7 +17,9 @@ fn main() -> Result<()> {
 }
 
 fn run(src: &str) -> Result<()> {
-    let (stmts, errors) = Parser::new(src).parse();
+    let mut parser = Parser::new(src);
+    parser.options.repl_mode = true;
+    let (stmts, errors) = parser.parse();
 
     if !errors.is_empty() {
         assert!(stmts.is_empty());
