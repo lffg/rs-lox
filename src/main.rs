@@ -5,7 +5,7 @@ use std::{
 };
 
 use anyhow::Result;
-use lox::{interpreter::Interpreter, parser::Parser};
+use lox::{ast::dbg::TreePrinter, interpreter::Interpreter, parser::Parser};
 
 fn main() -> Result<()> {
     if let Some(script_file_name) = env::args().nth(1) {
@@ -16,7 +16,7 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn run(src: &str) -> Result<()> {
+fn run(src: &str, show_tree: bool) -> Result<()> {
     let mut parser = Parser::new(src);
     parser.options.repl_mode = true;
     let (stmts, errors) = parser.parse();
@@ -28,6 +28,13 @@ fn run(src: &str) -> Result<()> {
         }
     } else {
         let mut interpreter = Interpreter;
+        if show_tree {
+            for stmt in &stmts {
+                println!("┌─");
+                TreePrinter::new("│ ").print_stmt(stmt);
+                println!("└─")
+            }
+        }
         if let Err(error) = interpreter.interpret(&stmts) {
             eprintln!("{}", error);
         }
@@ -37,11 +44,14 @@ fn run(src: &str) -> Result<()> {
 
 fn run_file(file: impl AsRef<Path>) -> Result<()> {
     let source = fs::read_to_string(file)?;
-    run(&source)
+    run(&source, false)
 }
 
 fn run_prompt() -> Result<()> {
     eprintln!("Welcome to rs-lox. Enter Ctrl+D or `:exit` to exit.\n");
+
+    let mut show_tree = false;
+
     loop {
         print!("> ");
         stdout().flush()?;
@@ -69,7 +79,12 @@ fn run_prompt() -> Result<()> {
                         }
                     }
                 }
-                "help" => eprintln!(":exit | :eval a b ... | :help"),
+                "tree" => {
+                    show_tree = !show_tree;
+                    let status = if show_tree { "ON" } else { "OFF" };
+                    println!("Toggled `show_tree` option to {}.", status);
+                }
+                "help" => eprintln!(":exit | :eval a b ... | :tree | :help"),
                 invalid => eprintln!(
                     "The command `{}` is not valid. Type `:help` for guidance.",
                     invalid
@@ -78,7 +93,7 @@ fn run_prompt() -> Result<()> {
             continue;
         }
 
-        run(source).unwrap_or_else(|err| {
+        run(source, show_tree).unwrap_or_else(|err| {
             eprintln!("{:?}", err);
         });
     }

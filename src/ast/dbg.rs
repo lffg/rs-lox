@@ -1,27 +1,62 @@
-use crate::ast::expr::{Expr, ExprKind::*};
+use crate::ast::{expr, stmt};
 
-pub fn print_tree(expr: &Expr, level: usize) {
-    macro_rules! emit {
-            ( $( $arg:tt )* ) => {
-                println!("{}{}", " . ".repeat(level), format_args!($( $arg )*));
-            };
+pub struct TreePrinter {
+    prefix: &'static str,
+    level: usize,
+}
+
+impl TreePrinter {
+    pub fn print_stmt(&mut self, stmt: &stmt::Stmt) {
+        use stmt::StmtKind::*;
+        match &stmt.kind {
+            Expr(expr) => {
+                self.emit("Expr Stmt");
+                self.bump_print_expr(&expr.expr);
+            }
+            Print(print) => {
+                self.emit("Print Stmt");
+                self.bump_print_expr(&print.expr);
+            }
         }
-    match &expr.kind {
-        Lit(lit) => {
-            emit!("Literal ({} :: {})", lit.value, lit.value.type_name());
+    }
+
+    pub fn print_expr(&mut self, expr: &expr::Expr) {
+        use expr::ExprKind::*;
+        match &expr.kind {
+            Lit(expr::Lit { value, .. }) => {
+                self.emit(format!("Literal ({} :: {})", value, value.type_name()));
+            }
+            Group(group) => {
+                self.emit("Group");
+                self.bump_print_expr(&group.expr);
+            }
+            Unary(unary) => {
+                self.emit("Unary {}");
+                self.bump_print_expr(&unary.operand);
+            }
+            Binary(binary) => {
+                self.emit("Binary {}");
+                self.bump_print_expr(&binary.left);
+                self.bump_print_expr(&binary.right);
+            }
         }
-        Group(g) => {
-            emit!("Group");
-            print_tree(&g.expr, level + 1);
-        }
-        Unary(u) => {
-            emit!("Unary {}", u.operator);
-            print_tree(&u.operand, level + 1);
-        }
-        Binary(b) => {
-            emit!("Binary {}", b.operator);
-            print_tree(&b.left, level + 1);
-            print_tree(&b.right, level + 1);
-        }
+    }
+
+    fn _bump_print_stmt(&mut self, stmt: &stmt::Stmt) {
+        self.level += 1;
+        self.print_stmt(stmt);
+    }
+
+    fn bump_print_expr(&mut self, expr: &expr::Expr) {
+        self.level += 1;
+        self.print_expr(expr);
+    }
+
+    pub fn new(prefix: &'static str) -> Self {
+        Self { level: 0, prefix }
+    }
+
+    fn emit(&self, str: impl Into<String>) {
+        println!("{}{}{}", self.prefix, " . ".repeat(self.level), str.into());
     }
 }
