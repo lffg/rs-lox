@@ -25,8 +25,7 @@ pub enum TokenKind {
     Number(f64),
 
     Comment(String),
-    NewLine,
-    Whitespace,
+    Whitespace(String),
 
     LeftParen,
     RightParen,
@@ -83,10 +82,11 @@ impl Display for TokenKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use TokenKind::*;
         match self {
-            Identifier(s) => s.fmt(f),
-            Number(n) => n.fmt(f),
-            String(s) => write!(f, "\"{}\"", s),
-            Comment(s) => write!(f, "//{}", s),
+            Identifier(identifier) => identifier.fmt(f),
+            Number(number) => number.fmt(f),
+            String(string) => write!(f, "\"{}\"", string),
+            Comment(comment) => write!(f, "//{}", comment),
+            Whitespace(whitespace) => whitespace.fmt(f),
             LeftParen => f.write_str("("),
             RightParen => f.write_str(")"),
             LeftBrace => f.write_str("{{"),
@@ -125,11 +125,9 @@ impl Display for TokenKind {
             Typeof => f.write_str("typeof"),
             Show => f.write_str("show"),
 
-            NewLine => f.write_str("<newline>"),
-            Whitespace => f.write_str("<whitespace>"),
             Eof => f.write_str("<eof>"),
             Dummy => f.write_str("<dummy>"),
-            Error(e) => write!(f, "<error: {}>", e),
+            Error(error) => write!(f, "<error: {}>", error),
         }
     }
 }

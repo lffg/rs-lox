@@ -39,7 +39,7 @@ impl Iterator for Scanner<'_> {
 // The scanner implementation.
 impl Scanner<'_> {
     /// Tries to scan the current character.
-    pub fn scan_token_kind(&mut self) -> TokenKind {
+    fn scan_token_kind(&mut self) -> TokenKind {
         use TokenKind::*;
         match self.advance() {
             '\0' => Eof,
@@ -60,7 +60,7 @@ impl Scanner<'_> {
             '"' => self.string(),
             '/' => self.comment_or_slash(),
             c if c.is_ascii_digit() => self.number(),
-            c if c.is_ascii_whitespace() => self.new_line_or_whitespace(c),
+            c if c.is_ascii_whitespace() => self.whitespace(),
             c if is_valid_identifier_start(c) => self.identifier_or_keyword(),
             unexpected => Error(format!("Unexpected character `{}`", unexpected)),
         }
@@ -108,11 +108,11 @@ impl Scanner<'_> {
     }
 
     /// Scans a newline or a whitespace.
-    fn new_line_or_whitespace(&mut self, c: char) -> TokenKind {
-        match c {
-            '\n' => TokenKind::NewLine,
-            _ => TokenKind::Whitespace,
+    fn whitespace(&mut self) -> TokenKind {
+        while self.current().is_ascii_whitespace() {
+            self.advance();
         }
+        TokenKind::Whitespace(self.lexme(0, 0).into())
     }
 
     /// Scans a keyword or an identifier.

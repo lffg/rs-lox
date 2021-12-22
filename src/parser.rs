@@ -11,7 +11,7 @@ use crate::{
 
 pub mod error;
 pub mod options;
-mod scanner;
+pub mod scanner;
 
 type PResult<T> = Result<T, ParseError>;
 
@@ -202,7 +202,7 @@ impl<'src> Parser<'src> {
     #[inline]
     fn is_ignored_kind(kind: &TokenKind) -> bool {
         use TokenKind::*;
-        matches!(kind, Comment(_) | NewLine | Whitespace)
+        matches!(kind, Comment(_) | Whitespace(_))
     }
 
     /// Advances the parser and returns a reference to the `prev_token` field.

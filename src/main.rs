@@ -22,22 +22,20 @@ fn run(src: &str, show_tree: bool) -> Result<()> {
     let (stmts, errors) = parser.parse();
 
     if !errors.is_empty() {
-        assert!(stmts.is_empty());
         for error in errors {
             eprintln!("{}", error);
         }
-    } else {
-        let mut interpreter = Interpreter;
-        if show_tree {
-            for stmt in &stmts {
-                println!(/*   */ "┌─");
-                TreePrinter::new("│ ").print_stmt(stmt);
-                println!(/*   */ "└─")
-            }
+    }
+    if show_tree {
+        for stmt in &stmts {
+            println!(/*   */ "┌─");
+            TreePrinter::new("│ ").print_stmt(stmt);
+            println!(/*   */ "└─")
         }
-        if let Err(error) = interpreter.interpret(&stmts) {
-            eprintln!("{}", error);
-        }
+    }
+    let mut interpreter = Interpreter;
+    if let Err(error) = interpreter.interpret(&stmts) {
+        eprintln!("{}", error);
     }
     Ok(())
 }
