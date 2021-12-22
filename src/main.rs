@@ -5,18 +5,35 @@ use std::{
 };
 
 use anyhow::Result;
-use lox::{ast::dbg::TreePrinter, interpreter::Interpreter, parser::Parser};
+use lox::{
+    ast::dbg::TreePrinter,
+    interpreter::Interpreter,
+    parser::{scanner::Scanner, Parser},
+};
+
+#[derive(Debug, Default, Clone)]
+struct ReplOptions {
+    pub show_lex: bool,
+    pub show_tree: bool,
+}
 
 fn main() -> Result<()> {
     if let Some(script_file_name) = env::args().nth(1) {
-        run_file(script_file_name, false)?;
+        run_file(script_file_name, &ReplOptions::default())?;
     } else {
         run_prompt()?;
     }
     Ok(())
 }
 
-fn run(src: &str, show_tree: bool) -> Result<()> {
+fn run(src: &str, options: &ReplOptions) {
+    if options.show_lex {
+        let scanner = Scanner::new(src);
+        println!(/*                */ "┌─");
+        scanner.for_each(|t| println!("│ {:?}", t));
+        println!(/*                */ "└─");
+    }
+
     let mut parser = Parser::new(src);
     parser.options.repl_mode = true;
     let (stmts, errors) = parser.parse();
@@ -25,30 +42,34 @@ fn run(src: &str, show_tree: bool) -> Result<()> {
         for error in errors {
             eprintln!("{}", error);
         }
+        // Must not show parse trees nor interpret them if there are any errors.
+        return;
     }
-    if show_tree {
+
+    if options.show_tree {
         for stmt in &stmts {
             println!(/*   */ "┌─");
             TreePrinter::new("│ ").print_stmt(stmt);
             println!(/*   */ "└─")
         }
     }
+
     let mut interpreter = Interpreter;
     if let Err(error) = interpreter.interpret(&stmts) {
         eprintln!("{}", error);
     }
-    Ok(())
 }
 
-fn run_file(file: impl AsRef<Path>, show_tree: bool) -> Result<()> {
+fn run_file(file: impl AsRef<Path>, options: &ReplOptions) -> Result<()> {
     let source = fs::read_to_string(file)?;
-    run(&source, show_tree)
+    run(&source, options);
+    Ok(())
 }
 
 fn run_prompt() -> Result<()> {
     eprintln!("Welcome to rs-lox. Enter Ctrl+D or `:exit` to exit.\n");
 
-    let mut show_tree = false;
+    let mut options = ReplOptions::default();
 
     loop {
         print!("> ");
@@ -72,17 +93,14 @@ fn run_prompt() -> Result<()> {
                 "eval" => {
                     for file in &cmd[1..] {
                         eprintln!("Evaluating `{}`...", file);
-                        if let Err(err) = run_file(file, show_tree) {
+                        if let Err(err) = run_file(file, &options) {
                             eprintln!("  error: {}", err);
                         }
                     }
                 }
-                "tree" => {
-                    show_tree = !show_tree;
-                    let status = if show_tree { "ON" } else { "OFF" };
-                    println!("Toggled `show_tree` option to {}.", status);
-                }
-                "help" => eprintln!(":exit | :eval a b ... | :tree | :help"),
+                "lex" => handle_bool_opt!(options.show_lex),
+                "tree" => handle_bool_opt!(options.show_tree),
+                "help" => eprintln!(":exit | :eval a b ... | :tree | :lex | :help"),
                 invalid => eprintln!(
                     "The command `{}` is not valid. Type `:help` for guidance.",
                     invalid
@@ -91,8 +109,15 @@ fn run_prompt() -> Result<()> {
             continue;
         }
 
-        run(source, show_tree).unwrap_or_else(|err| {
-            eprintln!("{:?}", err);
-        });
+        run(source, &options);
     }
 }
+
+macro_rules! handle_bool_opt {
+    ($struct:ident . $option:ident) => {{
+        $struct.$option = !$struct.$option;
+        let status = if $struct.$option { "ON" } else { "OFF" };
+        println!("Toggled `{}` option {}.", stringify!($option), status);
+    }};
+}
+use handle_bool_opt;
