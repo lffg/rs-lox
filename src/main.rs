@@ -17,6 +17,14 @@ struct ReplOptions {
     pub show_tree: bool,
 }
 
+macro_rules! handle_bool_opt {
+    ($struct:ident . $option:ident) => {{
+        $struct.$option = !$struct.$option;
+        let status = if $struct.$option { "ON" } else { "OFF" };
+        println!("Toggled `{}` option {}.", stringify!($option), status);
+    }};
+}
+
 fn main() -> Result<()> {
     if let Some(script_file_name) = env::args().nth(1) {
         run_file(script_file_name, &ReplOptions::default())?;
@@ -112,12 +120,3 @@ fn run_prompt() -> Result<()> {
         run(source, &options);
     }
 }
-
-macro_rules! handle_bool_opt {
-    ($struct:ident . $option:ident) => {{
-        $struct.$option = !$struct.$option;
-        let status = if $struct.$option { "ON" } else { "OFF" };
-        println!("Toggled `{}` option {}.", stringify!($option), status);
-    }};
-}
-use handle_bool_opt;

@@ -72,6 +72,22 @@ pub enum TokenKind {
     Error(String),
 }
 
+impl TokenKind {
+    pub fn is_keyword(&self) -> bool {
+        use TokenKind::*;
+        // All tokens kinds patterns are checked in order to preserve match exhaustiveness.
+        match self {
+            Nil | True | False | This | Super | Class | And | Or | If | Else | Return | Fun
+            | For | While | Var | Print | Typeof | Show => true,
+
+            Identifier(_) | String(_) | Number(_) | Comment(_) | Whitespace(_) | LeftParen
+            | RightParen | LeftBrace | RightBrace | Plus | Minus | Star | Slash | Dot | Comma
+            | Semicolon | Bang | BangEqual | Equal | EqualEqual | Less | LessEqual | Greater
+            | GreaterEqual | Eof | Dummy | Error(_) => false,
+        }
+    }
+}
+
 impl Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.kind.fmt(f)
