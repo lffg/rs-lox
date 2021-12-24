@@ -100,18 +100,8 @@ fn single_token() {
     for (case_name, src_str, expected_kind) in tokens {
         mt.named_test(case_name, move || {
             let mut scanner = Scanner::new(src_str);
-            assert_eq!(
-                scanner.next().unwrap().kind,
-                *expected_kind,
-                "Unexpected kind in test case `{}`.",
-                case_name
-            );
-            assert_eq!(
-                scanner.next().unwrap().kind,
-                Eof,
-                "Expected to finished in test case `{}`.",
-                case_name
-            );
+            assert_eq!(scanner.next().unwrap().kind, *expected_kind);
+            assert_eq!(scanner.next().unwrap().kind, Eof);
         });
     }
 }
