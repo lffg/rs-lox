@@ -9,16 +9,16 @@ impl TreePrinter {
     pub fn print_stmt(&mut self, stmt: &stmt::Stmt) {
         use stmt::StmtKind::*;
         match &stmt.kind {
-            Expr(expr) => {
-                self.emit("Expr Stmt");
-                self.nest(|s| {
-                    s.print_expr(&expr.expr);
-                });
-            }
             Print(print) => {
                 self.emit("Print Stmt");
                 self.nest(|s| {
                     s.print_expr(&print.expr);
+                });
+            }
+            Expr(expr) => {
+                self.emit("Expr Stmt");
+                self.nest(|s| {
+                    s.print_expr(&expr.expr);
                 });
             }
         }

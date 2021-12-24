@@ -30,8 +30,8 @@ impl Interpreter {
     fn eval_stmt(&mut self, stmt: &Stmt) -> IResult<()> {
         use StmtKind::*;
         match &stmt.kind {
-            Expr(expr) => self.eval_expr_stmt(expr),
             Print(print) => self.eval_print_stmt(print),
+            Expr(expr) => self.eval_expr(&expr.expr).map(drop),
         }
     }
 
@@ -41,11 +41,6 @@ impl Interpreter {
             true => println!("{:?}", val),
             false => println!("{}", val),
         }
-        Ok(())
-    }
-
-    fn eval_expr_stmt(&mut self, expr: &stmt::Expr) -> IResult<()> {
-        self.eval_expr(&expr.expr)?;
         Ok(())
     }
 

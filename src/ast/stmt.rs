@@ -6,15 +6,15 @@ pub struct Stmt {
     pub span: Span,
 }
 
-make_ast_enum!(StmtKind, [Expr, Print]);
-
-#[derive(Debug)]
-pub struct Expr {
-    pub expr: expr::Expr,
-}
+make_ast_enum!(StmtKind, [Print, Expr]);
 
 #[derive(Debug)]
 pub struct Print {
     pub expr: expr::Expr,
     pub debug: bool,
+}
+
+#[derive(Debug)]
+pub struct Expr {
+    pub expr: expr::Expr,
 }

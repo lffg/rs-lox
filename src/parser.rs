@@ -27,23 +27,31 @@ pub struct Parser<'src> {
 //
 // # Grammar:
 //
-// ```none
-// program    -> stmt* EOF
+// -----------------------------------------------------------------------------
 //
-// stmt       -> expr_stmt
-//             | print_stmt ;
+// program     ::= decl* EOF ;
 //
-// expr_stmt  -> expr ";" ;
-// print_stmt -> "print" expr ";" ;
+// decl        ::= stmt ;
 //
-// expr       -> equality
-// equality   -> comparison ( ( "==" | "!=" ) comparison )* ;
-// comparison -> term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
-// term       -> factor ( ( "+" | "-" ) factor )* ;
-// factor     -> unary ( ( "*" | "/" ) unary )* ;
-// unary      -> ( "show" | "typeof" | "!" | "-" ) unary | primary ;
-// primary    -> NUMBER | STRING | "true" | "false" | "nil" | "(" expr ")" ;
-// ```
+// stmt        ::= print_stmt
+//               | expr_stmt ;
+//
+// print_stmt  ::= "print" expr ";" ;
+// expr_stmt   ::= expr ";" ;
+//
+// expr        ::= equality ;
+// equality    ::= comparison ( ( "==" | "!=" ) comparison )* ;
+// comparison  ::= term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
+// term        ::= factor ( ( "+" | "-" ) factor )* ;
+// factor      ::= unary ( ( "*" | "/" ) unary )* ;
+// unary       ::= ( "show" | "typeof" | "!" | "-" ) unary
+//               | primary ;
+// primary     ::= NUMBER | STRING
+//               | "true" | "false"
+//               | "nil"
+//               | "(" expr ")" ;
+//
+// -----------------------------------------------------------------------------
 //
 // Each production has a correspondent method in the following implementation.
 impl Parser<'_> {
@@ -54,7 +62,7 @@ impl Parser<'_> {
     fn parse_program(&mut self) -> Vec<Stmt> {
         let mut stmts = Vec::new();
         while !self.is_at_end() {
-            match self.parse_stmt() {
+            match self.parse_decl() {
                 Ok(stmt) => stmts.push(stmt),
                 Err(error) => {
                     self.diagnostics.push(error);
@@ -63,6 +71,10 @@ impl Parser<'_> {
             }
         }
         stmts
+    }
+
+    fn parse_decl(&mut self) -> PResult<Stmt> {
+        self.parse_stmt()
     }
 
     fn parse_stmt(&mut self) -> PResult<Stmt> {
