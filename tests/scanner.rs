@@ -154,10 +154,8 @@ pub fn token_pairs_with_separator() {
     }
 }
 
-fn is_separation_required(a: &TokenKind, b: &TokenKind) -> bool {
-    let a_kwd = a.is_keyword();
-    let b_kwd = b.is_keyword();
-    match (a, b) {
+fn is_separation_required(kind1: &TokenKind, kind2: &TokenKind) -> bool {
+    match (kind1, kind2) {
         (Slash, Slash) => true,
         (Equal, Equal) => true,
         (Equal, EqualEqual) => true,
@@ -169,14 +167,14 @@ fn is_separation_required(a: &TokenKind, b: &TokenKind) -> bool {
         (Greater, EqualEqual) => true,
 
         (Number(_), Number(_)) => true,
-        (_, Number(_)) if a_kwd => true,
+        (a, Number(_)) if a.is_keyword() => true,
 
         (Identifier(_), Identifier(_)) => true,
         (Identifier(_), Number(_)) => true,
-        (_, Identifier(_)) if a_kwd => true,
-        (Identifier(_), _) if b_kwd => true,
+        (a, Identifier(_)) if a.is_keyword() => true,
+        (Identifier(_), b) if b.is_keyword() => true,
 
-        _ if a_kwd && b_kwd => true,
+        (a, b) if a.is_keyword() && b.is_keyword() => true,
         _ => false,
     }
 }
