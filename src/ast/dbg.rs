@@ -9,6 +9,16 @@ impl TreePrinter {
     pub fn print_stmt(&mut self, stmt: &stmt::Stmt) {
         use stmt::StmtKind::*;
         match &stmt.kind {
+            Var(var) => {
+                self.emit("Var Decl");
+                self.nest(|s| {
+                    s.emit(format!("Name = `{}`", var.name));
+                    if let Some(init) = &var.init {
+                        s.emit("Var Init");
+                        s.nest(|s| s.print_expr(init));
+                    }
+                });
+            }
             Print(print) => {
                 self.emit("Print Stmt");
                 self.nest(|s| {
@@ -28,7 +38,10 @@ impl TreePrinter {
         use expr::ExprKind::*;
         match &expr.kind {
             Lit(expr::Lit { value, .. }) => {
-                self.emit(format!("Literal ({} :: {})", value, value.type_name()));
+                self.emit(format!("Literal ({:?} :: {})", value, value.type_name()));
+            }
+            Var(var) => {
+                self.emit(format!("Var `{}`", var.name));
             }
             Group(group) => {
                 self.emit("Group");

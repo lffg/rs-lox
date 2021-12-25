@@ -34,7 +34,7 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn run(src: &str, options: &ReplOptions) {
+fn run(src: &str, interpreter: &mut Interpreter, options: &ReplOptions) {
     if options.show_lex {
         let scanner = Scanner::new(src);
         println!(/*                */ "┌─");
@@ -62,7 +62,6 @@ fn run(src: &str, options: &ReplOptions) {
         }
     }
 
-    let mut interpreter = Interpreter;
     if let Err(error) = interpreter.interpret(&stmts) {
         eprintln!("{}", error);
     }
@@ -70,7 +69,8 @@ fn run(src: &str, options: &ReplOptions) {
 
 fn run_file(file: impl AsRef<Path>, options: &ReplOptions) -> Result<()> {
     let source = fs::read_to_string(file)?;
-    run(&source, options);
+    let mut interpreter = Interpreter::new();
+    run(&source, &mut interpreter, options);
     Ok(())
 }
 
@@ -78,6 +78,7 @@ fn run_prompt() -> Result<()> {
     eprintln!("Welcome to rs-lox. Enter Ctrl+D or `:exit` to exit.\n");
 
     let mut options = ReplOptions::default();
+    let mut interpreter = Interpreter::new();
 
     loop {
         print!("> ");
@@ -117,6 +118,6 @@ fn run_prompt() -> Result<()> {
             continue;
         }
 
-        run(source, &options);
+        run(source, &mut interpreter, &options);
     }
 }

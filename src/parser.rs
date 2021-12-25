@@ -3,7 +3,7 @@ use std::{iter::Peekable, mem};
 use crate::{
     ast::{
         expr::{self, Expr, ExprKind},
-        stmt::{self, Stmt},
+        stmt::{self, Stmt, StmtKind},
     },
     parser::{error::ParseError, options::ParserOptions, scanner::Scanner},
     token::{Token, TokenKind},
@@ -31,7 +31,10 @@ pub struct Parser<'src> {
 //
 // program     ::= decl* EOF ;
 //
-// decl        ::= stmt ;
+// decl        ::= var_decl
+//               | stmt ;
+//
+// var_decl    ::= "var" IDENTIFIER ( "=" expr )? ";" ;
 //
 // stmt        ::= print_stmt
 //               | expr_stmt ;
@@ -46,7 +49,8 @@ pub struct Parser<'src> {
 // factor      ::= unary ( ( "*" | "/" ) unary )* ;
 // unary       ::= ( "show" | "typeof" | "!" | "-" ) unary
 //               | primary ;
-// primary     ::= NUMBER | STRING
+// primary     ::= IDENTIFIER
+//               | NUMBER | STRING
 //               | "true" | "false"
 //               | "nil"
 //               | "(" expr ")" ;
@@ -74,7 +78,38 @@ impl Parser<'_> {
     }
 
     fn parse_decl(&mut self) -> PResult<Stmt> {
+        if self.take(TokenKind::Var) {
+            return self.parse_var_decl();
+        }
         self.parse_stmt()
+    }
+
+    fn parse_var_decl(&mut self) -> PResult<Stmt> {
+        use TokenKind::{Equal, Identifier, Semicolon};
+
+        let var_span = self.prev_token.span;
+        match self.current_token.kind {
+            Identifier(ref name) => {
+                let name = name.clone();
+                let name_span = self.advance().span;
+                let mut init = None;
+                if self.take(Equal) {
+                    init = Some(self.parse_expr()?);
+                }
+                let semicolon_span = self
+                    .consume(Semicolon, "Expected `;` after variable declaration")?
+                    .span;
+                Ok(Stmt {
+                    kind: StmtKind::from(stmt::Var {
+                        name,
+                        name_span,
+                        init,
+                    }),
+                    span: var_span.to(semicolon_span),
+                })
+            }
+            _ => Err(self.unexpected("Expected variable name", Some(Identifier("<ident>".into())))),
+        }
     }
 
     fn parse_stmt(&mut self) -> PResult<Stmt> {
@@ -86,12 +121,13 @@ impl Parser<'_> {
     }
 
     fn parse_print_stmt(&mut self) -> PResult<Stmt> {
+        let print_token_span = self.prev_token.span;
         let expr = self.parse_expr()?;
         let semicolon_span = self
             .consume(TokenKind::Semicolon, "Expected `;` after value")?
             .span;
         Ok(Stmt {
-            span: expr.span.to(semicolon_span),
+            span: print_token_span.to(semicolon_span),
             kind: stmt::Print { expr, debug: false }.into(),
         })
     }
@@ -179,6 +215,10 @@ impl Parser<'_> {
                     span: token.span,
                 })
             }
+            Identifier(ref name) => Ok(Expr {
+                kind: expr::Var { name: name.clone() }.into(),
+                span: self.advance().span,
+            }),
             LeftParen => {
                 let left_paren_span = self.advance().span;
                 let expr = self.parse_expr()?.into();
@@ -190,11 +230,7 @@ impl Parser<'_> {
                     span: left_paren_span.to(right_paren_span),
                 })
             }
-            _ => Err(ParseError::UnexpectedToken {
-                message: "Expected any expression".into(),
-                offending: self.current_token.clone(),
-                expected: None,
-            }),
+            _ => Err(self.unexpected("Expected any expression", None)),
         }
     }
 }
@@ -214,28 +250,23 @@ impl<'src> Parser<'src> {
         parser
     }
 
-    /// Checks if the given token kind shall be ignored by this parser.
-    #[inline]
-    fn is_ignored_kind(kind: &TokenKind) -> bool {
-        use TokenKind::*;
-        matches!(kind, Comment(_) | Whitespace(_))
-    }
-
     /// Advances the parser and returns a reference to the `prev_token` field.
     fn advance(&mut self) -> &Token {
         let next = loop {
             let maybe_next = self.scanner.next().expect("Cannot advance past Eof.");
-            // Report `Error` tokens:
+            // Report and ignore tokens with the `Error` kind:
             if let TokenKind::Error(message) = maybe_next.kind {
                 self.diagnostics.push(ParseError::ScannerError {
                     offending_span: maybe_next.span,
                     message,
                 });
-                continue; // The parser ignores `Error` tokens.
+                continue;
             }
-            if !Self::is_ignored_kind(&maybe_next.kind) {
-                break maybe_next;
+            // Handle other common ignored kinds:
+            if let TokenKind::Comment(_) | TokenKind::Whitespace(_) = maybe_next.kind {
+                continue;
             }
+            break maybe_next;
         };
         self.prev_token = mem::replace(&mut self.current_token, next);
         &self.prev_token
@@ -258,11 +289,18 @@ impl<'src> Parser<'src> {
         if self.current_token.kind == expected {
             Ok(self.advance())
         } else {
-            Err(ParseError::UnexpectedToken {
-                message: msg.into(),
-                offending: self.current_token.clone(),
-                expected: Some(expected),
-            })
+            Err(self.unexpected(msg, Some(expected)))
+        }
+    }
+
+    /// Returns an `ParseError::UnexpectedToken`.
+    #[inline(always)]
+    fn unexpected(&self, message: impl Into<String>, expected: Option<TokenKind>) -> ParseError {
+        let message = message.into();
+        ParseError::UnexpectedToken {
+            message,
+            expected,
+            offending: self.current_token.clone(),
         }
     }
 

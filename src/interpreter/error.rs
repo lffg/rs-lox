@@ -12,6 +12,10 @@ pub enum RuntimeError {
         operation_span: Span,
     },
 
+    UndefinedVariable {
+        name: String,
+    },
+
     ZeroDivision {
         operation_span: Span,
     },
@@ -30,6 +34,10 @@ impl Display for RuntimeError {
                 writeln!(f, "{}", message)?;
                 write!(f, "    At position {}", operation_span)?;
                 Ok(())
+            }
+
+            UndefinedVariable { name } => {
+                write!(f, "Undefined variable `{}`.", name)
             }
 
             ZeroDivision { operation_span } => {

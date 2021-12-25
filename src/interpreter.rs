@@ -3,19 +3,27 @@ use crate::{
         expr::{self, Expr, ExprKind},
         stmt::{self, Stmt, StmtKind},
     },
-    interpreter::error::RuntimeError,
+    interpreter::{environment::Environment, error::RuntimeError},
     token::TokenKind,
     value::LoxValue,
 };
 
+mod environment;
 pub mod error;
 
 type IResult<T> = Result<T, RuntimeError>;
 
-pub struct Interpreter;
+#[derive(Debug, Default)]
+pub struct Interpreter {
+    env: Environment,
+}
 
 // The interpreter implementation.
 impl Interpreter {
+    pub fn new() -> Self {
+        Default::default()
+    }
+
     pub fn interpret(&mut self, stmts: &[Stmt]) -> IResult<()> {
         for stmt in stmts {
             self.eval_stmt(stmt)?;
@@ -30,9 +38,19 @@ impl Interpreter {
     fn eval_stmt(&mut self, stmt: &Stmt) -> IResult<()> {
         use StmtKind::*;
         match &stmt.kind {
+            Var(var) => self.eval_var_stmt(var),
             Print(print) => self.eval_print_stmt(print),
             Expr(expr) => self.eval_expr(&expr.expr).map(drop),
         }
+    }
+
+    fn eval_var_stmt(&mut self, var: &stmt::Var) -> IResult<()> {
+        let value = match var.init {
+            Some(ref expr) => self.eval_expr(expr)?,
+            None => LoxValue::Nil,
+        };
+        self.env.define(var.name.clone(), value);
+        Ok(())
     }
 
     fn eval_print_stmt(&mut self, print: &stmt::Print) -> IResult<()> {
@@ -52,6 +70,7 @@ impl Interpreter {
         use ExprKind::*;
         match &expr.kind {
             Lit(lit) => self.eval_lit_expr(lit),
+            Var(var) => self.env.read(&var.name),
             Group(group) => self.eval_group_expr(group),
             Unary(unary) => self.eval_unary_expr(unary),
             Binary(binary) => self.eval_binary_expr(binary),

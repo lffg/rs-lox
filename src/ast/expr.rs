@@ -10,12 +10,16 @@ pub struct Expr {
     pub span: Span,
 }
 
-make_ast_enum!(ExprKind, [Lit, Group, Unary, Binary]);
+make_ast_enum!(ExprKind, [Lit, Var, Group, Unary, Binary]);
 
 #[derive(Debug)]
 pub struct Lit {
-    pub token: Token,
     pub value: LoxValue,
+}
+
+#[derive(Debug)]
+pub struct Var {
+    pub name: String,
 }
 
 #[derive(Debug)]
@@ -45,9 +49,9 @@ impl From<Token> for Lit {
         use LoxValue as L;
         use TokenKind as T;
         Lit {
-            value: match &token.kind {
-                T::String(string) => L::String(string.clone()),
-                T::Number(number) => L::Number(*number),
+            value: match token.kind {
+                T::String(string) => L::String(string),
+                T::Number(number) => L::Number(number),
                 T::Nil => L::Nil,
                 T::True => L::Boolean(true),
                 T::False => L::Boolean(false),
@@ -56,7 +60,6 @@ impl From<Token> for Lit {
                     unexpected
                 ),
             },
-            token,
         }
     }
 }

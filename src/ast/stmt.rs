@@ -6,7 +6,14 @@ pub struct Stmt {
     pub span: Span,
 }
 
-make_ast_enum!(StmtKind, [Print, Expr]);
+make_ast_enum!(StmtKind, [Var, Print, Expr]);
+
+#[derive(Debug)]
+pub struct Var {
+    pub name: String,
+    pub name_span: Span,
+    pub init: Option<expr::Expr>,
+}
 
 #[derive(Debug)]
 pub struct Print {
