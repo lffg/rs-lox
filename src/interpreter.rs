@@ -74,6 +74,7 @@ impl Interpreter {
             Group(group) => self.eval_group_expr(group),
             Unary(unary) => self.eval_unary_expr(unary),
             Binary(binary) => self.eval_binary_expr(binary),
+            Assignment(assignment) => self.eval_assignment_expr(assignment),
         }
     }
 
@@ -147,6 +148,11 @@ impl Interpreter {
 
             unexpected => unreachable!("Invalid binary operator ({:?}).", unexpected),
         }
+    }
+
+    fn eval_assignment_expr(&mut self, assignment: &expr::Assignment) -> IResult<LoxValue> {
+        let value = self.eval_expr(&assignment.value)?;
+        self.env.assign(&assignment.name, value)
     }
 }
 

@@ -62,6 +62,14 @@ impl TreePrinter {
                     s.print_expr(&binary.right);
                 });
             }
+            Assignment(assignment) => {
+                self.emit("Assignment");
+                self.nest(|s| {
+                    s.emit(format!("Target `{}`", assignment.name));
+                    s.emit("Value");
+                    s.nest(|s| s.print_expr(&assignment.value));
+                });
+            }
         }
     }
 

@@ -10,7 +10,7 @@ pub struct Expr {
     pub span: Span,
 }
 
-make_ast_enum!(ExprKind, [Lit, Var, Group, Unary, Binary]);
+make_ast_enum!(ExprKind, [Lit, Var, Group, Unary, Binary, Assignment]);
 
 #[derive(Debug)]
 pub struct Lit {
@@ -38,6 +38,13 @@ pub struct Binary {
     pub left: Box<Expr>,
     pub operator: Token,
     pub right: Box<Expr>,
+}
+
+#[derive(Debug)]
+pub struct Assignment {
+    pub name: String,
+    pub name_span: Span,
+    pub value: Box<Expr>,
 }
 
 //

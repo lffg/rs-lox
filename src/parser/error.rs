@@ -10,6 +10,12 @@ use crate::{
 
 #[derive(Debug)]
 pub enum ParseError {
+    // The most generic error kind.
+    Error {
+        message: String,
+        span: Span,
+    },
+
     UnexpectedToken {
         message: String,
         offending: Token,
@@ -18,7 +24,7 @@ pub enum ParseError {
 
     ScannerError {
         message: String,
-        offending_span: Span,
+        span: Span,
     },
 }
 
@@ -28,6 +34,12 @@ impl Display for ParseError {
         // Note that a new line should NOT be included at the end. As such, while `writeln!` may be
         // called, the last call must always be an `write!`.
         match self {
+            Error { message, span } => {
+                writeln!(f, "{}", message)?;
+                write!(f, "    At position {}", span)?;
+                Ok(())
+            }
+
             UnexpectedToken {
                 message,
                 offending,
@@ -45,12 +57,9 @@ impl Display for ParseError {
                 Ok(())
             }
 
-            ScannerError {
-                message,
-                offending_span,
-            } => {
+            ScannerError { message, span } => {
                 writeln!(f, "{}", message)?;
-                write!(f, "    At position {}", offending_span)?;
+                write!(f, "    At position {}", span)?;
                 Ok(())
             }
         }

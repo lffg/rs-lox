@@ -42,7 +42,9 @@ pub struct Parser<'src> {
 // print_stmt  ::= "print" expr ";" ;
 // expr_stmt   ::= expr ";" ;
 //
-// expr        ::= equality ;
+// expr        ::= assignment ;
+// assignment  ::= IDENTIFIER "=" expr
+//               | equality ;
 // equality    ::= comparison ( ( "==" | "!=" ) comparison )* ;
 // comparison  ::= term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 // term        ::= factor ( ( "+" | "-" ) factor )* ;
@@ -154,7 +156,39 @@ impl Parser<'_> {
     }
 
     fn parse_expr(&mut self) -> PResult<Expr> {
-        self.parse_equality()
+        self.parse_assignment()
+    }
+
+    fn parse_assignment(&mut self) -> PResult<Expr> {
+        // The parser does not yet know if `left` should be used as an expression (i.e. an rvalue)
+        // or as an "assignment target" (i.e. an lvalue).
+        let left = self.parse_equality()?;
+
+        if self.take(TokenKind::Equal) {
+            // Since assignments are right associative, we use right recursion to parse its value.
+            // The right-most assignment value should be evaluated first (down in the parse tree),
+            // so it should be parsed last. This semantic can be coded with this kind of recursion.
+            let value = self.parse_assignment()?;
+
+            // Now the parser knows that `left` must be an lvalue.
+            if let ExprKind::Var(expr::Var { name }) = left.kind {
+                return Ok(Expr {
+                    span: left.span.to(value.span),
+                    kind: ExprKind::from(expr::Assignment {
+                        name,
+                        name_span: left.span,
+                        value: value.into(),
+                    }),
+                });
+            }
+
+            return Err(ParseError::Error {
+                message: "Invalid assignment target.".into(),
+                span: left.span,
+            });
+        }
+
+        Ok(left)
     }
 
     fn parse_equality(&mut self) -> PResult<Expr> {
@@ -257,7 +291,7 @@ impl<'src> Parser<'src> {
             // Report and ignore tokens with the `Error` kind:
             if let TokenKind::Error(message) = maybe_next.kind {
                 self.diagnostics.push(ParseError::ScannerError {
-                    offending_span: maybe_next.span,
+                    span: maybe_next.span,
                     message,
                 });
                 continue;
