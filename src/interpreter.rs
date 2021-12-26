@@ -21,8 +21,7 @@ pub struct Interpreter {
 // The interpreter implementation.
 impl Interpreter {
     pub fn new() -> Self {
-        let env = Environment::new();
-        Self { env }
+        Default::default()
     }
 
     pub fn interpret(&mut self, stmts: &[Stmt]) -> IResult<()> {
@@ -168,6 +167,13 @@ impl Interpreter {
     fn eval_assignment_expr(&mut self, assignment: &expr::Assignment) -> IResult<LoxValue> {
         let value = self.eval_expr(&assignment.value)?;
         self.env.assign(&assignment.name, value)
+    }
+}
+
+impl Default for Interpreter {
+    fn default() -> Self {
+        let env = Environment::new();
+        Self { env }
     }
 }
 
