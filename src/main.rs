@@ -46,20 +46,19 @@ fn run(src: &str, interpreter: &mut Interpreter, options: &ReplOptions) {
     parser.options.repl_mode = true;
     let (stmts, errors) = parser.parse();
 
+    if !stmts.is_empty() {
+        if options.show_tree {
+            println!(/*   */ "┌─");
+            TreePrinter::new("│ ").print_stmts(&stmts);
+            println!(/*   */ "└─");
+        }
+    }
+
     if !errors.is_empty() {
         for error in errors {
             eprintln!("{}", error);
         }
-        // Must not show parse trees nor interpret them if there are any errors.
         return;
-    }
-
-    if options.show_tree {
-        for stmt in &stmts {
-            println!(/*   */ "┌─");
-            TreePrinter::new("│ ").print_stmt(stmt);
-            println!(/*   */ "└─")
-        }
     }
 
     if let Err(error) = interpreter.interpret(&stmts) {

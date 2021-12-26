@@ -6,6 +6,7 @@ use crate::{
         stmt::{self, Stmt, StmtKind},
     },
     parser::{error::ParseError, options::ParserOptions, scanner::Scanner},
+    span::Span,
     token::{Token, TokenKind},
 };
 
@@ -37,9 +38,11 @@ pub struct Parser<'src> {
 // var_decl    ::= "var" IDENTIFIER ( "=" expr )? ";" ;
 //
 // stmt        ::= print_stmt
+//               | block_stmt
 //               | expr_stmt ;
 //
 // print_stmt  ::= "print" expr ";" ;
+// block_stmt  ::= "{" declaration* "}" ;
 // expr_stmt   ::= expr ";" ;
 //
 // expr        ::= assignment ;
@@ -68,29 +71,35 @@ impl Parser<'_> {
     fn parse_program(&mut self) -> Vec<Stmt> {
         let mut stmts = Vec::new();
         while !self.is_at_end() {
-            match self.parse_decl() {
-                Ok(stmt) => stmts.push(stmt),
-                Err(error) => {
-                    self.diagnostics.push(error);
-                    self.synchronize();
+            // TODO: Maybe synchronize at `parse_decl`.
+            stmts.push(self.parse_decl().unwrap_or_else(|error| {
+                self.diagnostics.push(error);
+                self.synchronize();
+                let hi = self.current_token.span.hi;
+                Stmt {
+                    kind: stmt::Dummy().into(),
+                    span: Span::new(hi, hi),
                 }
-            }
+            }));
         }
         stmts
     }
 
+    //
+    // Declarations
+    //
+
     fn parse_decl(&mut self) -> PResult<Stmt> {
-        if self.take(TokenKind::Var) {
-            return self.parse_var_decl();
+        match self.current_token.kind {
+            TokenKind::Var => self.parse_var_decl(),
+            _ => self.parse_stmt(),
         }
-        self.parse_stmt()
     }
 
     fn parse_var_decl(&mut self) -> PResult<Stmt> {
-        use TokenKind::{Equal, Identifier, Semicolon};
-
+        use TokenKind::*;
+        let var_span = self.consume(Var, "")?.span;
         if let Identifier(ref name) = self.current_token.kind {
-            let var_span = self.prev_token.span;
             let name = name.clone();
             let name_span = self.advance().span;
 
@@ -116,15 +125,24 @@ impl Parser<'_> {
         Err(self.unexpected("Expected variable name", Some(Identifier("<ident>".into()))))
     }
 
+    //
+    // Statements
+    //
+
     fn parse_stmt(&mut self) -> PResult<Stmt> {
-        if self.take(TokenKind::Print) {
-            return self.parse_print_stmt();
+        match self.current_token.kind {
+            TokenKind::Print => self.parse_print_stmt(),
+            TokenKind::LeftBrace => {
+                let (stmts, span) = self.parse_block()?;
+                let kind = stmt::Block { stmts }.into();
+                Ok(Stmt { kind, span })
+            }
+            _ => self.parse_expr_stmt(),
         }
-        self.parse_expr_stmt()
     }
 
     fn parse_print_stmt(&mut self) -> PResult<Stmt> {
-        let print_token_span = self.prev_token.span;
+        let print_token_span = self.consume(TokenKind::Print, "")?.span;
         let expr = self.parse_expr()?;
         let semicolon_span = self
             .consume(TokenKind::Semicolon, "Expected `;` after value")?
@@ -133,6 +151,18 @@ impl Parser<'_> {
             span: print_token_span.to(semicolon_span),
             kind: stmt::Print { expr, debug: false }.into(),
         })
+    }
+
+    fn parse_block(&mut self) -> PResult<(Vec<Stmt>, Span)> {
+        let left_brace_span = self.consume(TokenKind::LeftBrace, "")?.span;
+        let mut stmts = Vec::new();
+        while !self.is(&TokenKind::RightBrace) && !self.is_at_end() {
+            stmts.push(self.parse_decl()?);
+        }
+        let right_brace_span = self
+            .consume(TokenKind::RightBrace, "Expected block to be closed")?
+            .span;
+        Ok((stmts, left_brace_span.to(right_brace_span)))
     }
 
     fn parse_expr_stmt(&mut self) -> PResult<Stmt> {
@@ -155,6 +185,10 @@ impl Parser<'_> {
             kind: stmt::Expr { expr }.into(),
         })
     }
+
+    //
+    // Expressions
+    //
 
     fn parse_expr(&mut self) -> PResult<Expr> {
         self.parse_assignment()
@@ -307,21 +341,27 @@ impl<'src> Parser<'src> {
         &self.prev_token
     }
 
+    /// Checks if the current token matches the kind of the given one.
+    #[inline]
+    fn is(&mut self, expected: &TokenKind) -> bool {
+        mem::discriminant(&self.current_token.kind) == mem::discriminant(expected)
+    }
+
     /// Checks if the current token matches the kind of the given one. In such case advances and
     /// returns true. Otherwise returns false.
     fn take(&mut self, expected: TokenKind) -> bool {
-        if mem::discriminant(&self.current_token.kind) == mem::discriminant(&expected) {
+        let res = self.is(&expected);
+        if res {
             self.advance();
-            return true;
         }
-        false
+        res
     }
 
     /// Checks if the current token matches the kind of the given one. In such case advances and
     /// returns `Ok(_)` with the consumed token. Otherwise returns an expectation error with the
     /// provided message.
     fn consume(&mut self, expected: TokenKind, msg: impl Into<String>) -> PResult<&Token> {
-        if mem::discriminant(&self.current_token.kind) == mem::discriminant(&expected) {
+        if self.is(&expected) {
             Ok(self.advance())
         } else {
             Err(self.unexpected(msg, Some(expected)))
@@ -331,7 +371,10 @@ impl<'src> Parser<'src> {
     /// Returns an `ParseError::UnexpectedToken`.
     #[inline(always)]
     fn unexpected(&self, message: impl Into<String>, expected: Option<TokenKind>) -> ParseError {
-        let message = message.into();
+        let mut message = message.into();
+        if message.is_empty() {
+            message = "The spanned token is not expected. This is a compiler bug.".into();
+        }
         ParseError::UnexpectedToken {
             message,
             expected,

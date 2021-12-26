@@ -6,6 +6,15 @@ pub struct TreePrinter {
 }
 
 impl TreePrinter {
+    pub fn print_stmts(&mut self, stmts: &[stmt::Stmt]) {
+        for (i, stmt) in stmts.iter().enumerate() {
+            self.print_stmt(stmt);
+            if i != stmts.len() - 1 {
+                self.emit("");
+            }
+        }
+    }
+
     pub fn print_stmt(&mut self, stmt: &stmt::Stmt) {
         use stmt::StmtKind::*;
         match &stmt.kind {
@@ -25,12 +34,17 @@ impl TreePrinter {
                     s.print_expr(&print.expr);
                 });
             }
+            Block(block) => {
+                self.emit("Block Stmt");
+                self.nest(|s| s.print_stmts(&block.stmts));
+            }
             Expr(expr) => {
                 self.emit("Expr Stmt");
                 self.nest(|s| {
                     s.print_expr(&expr.expr);
                 });
             }
+            Dummy(_) => self.emit("Dummy Stmt (INVALID TREE)"),
         }
     }
 

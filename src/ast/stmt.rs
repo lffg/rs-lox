@@ -6,7 +6,7 @@ pub struct Stmt {
     pub span: Span,
 }
 
-make_ast_enum!(StmtKind, [Var, Print, Expr]);
+make_ast_enum!(StmtKind, [Var, Print, Block, Expr, Dummy]);
 
 #[derive(Debug)]
 pub struct Var {
@@ -22,6 +22,15 @@ pub struct Print {
 }
 
 #[derive(Debug)]
+pub struct Block {
+    pub stmts: Vec<Stmt>,
+}
+
+#[derive(Debug)]
 pub struct Expr {
     pub expr: expr::Expr,
 }
+
+/// For error purposes.
+#[derive(Debug)]
+pub struct Dummy();

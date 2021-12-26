@@ -1,3 +1,5 @@
+use std::{cell::RefCell, rc::Rc};
+
 use crate::{
     ast::{
         expr::{self, Expr, ExprKind},
@@ -15,7 +17,7 @@ type IResult<T> = Result<T, RuntimeError>;
 
 #[derive(Debug, Default)]
 pub struct Interpreter {
-    env: Environment,
+    env: Rc<RefCell<Environment>>,
 }
 
 // The interpreter implementation.
@@ -25,22 +27,28 @@ impl Interpreter {
     }
 
     pub fn interpret(&mut self, stmts: &[Stmt]) -> IResult<()> {
-        for stmt in stmts {
-            self.eval_stmt(stmt)?;
-        }
-        Ok(())
+        self.eval_stmts(stmts)
     }
 
     //
     // Statements
     //
 
+    fn eval_stmts(&mut self, stmts: &[Stmt]) -> IResult<()> {
+        for stmt in stmts {
+            self.eval_stmt(stmt)?;
+        }
+        Ok(())
+    }
+
     fn eval_stmt(&mut self, stmt: &Stmt) -> IResult<()> {
         use StmtKind::*;
         match &stmt.kind {
             Var(var) => self.eval_var_stmt(var),
             Print(print) => self.eval_print_stmt(print),
+            Block(block) => self.eval_block_stmt(block),
             Expr(expr) => self.eval_expr(&expr.expr).map(drop),
+            Dummy(_) => unreachable!(),
         }
     }
 
@@ -49,7 +57,7 @@ impl Interpreter {
             Some(ref expr) => self.eval_expr(expr)?,
             None => LoxValue::Nil,
         };
-        self.env.define(var.name.clone(), value);
+        self.env.borrow_mut().define(var.name.clone(), value);
         Ok(())
     }
 
@@ -62,6 +70,14 @@ impl Interpreter {
         Ok(())
     }
 
+    fn eval_block_stmt(&mut self, block: &stmt::Block) -> IResult<()> {
+        let prev = Rc::clone(&self.env);
+        self.env = Environment::new_enclosed(Rc::clone(&prev));
+        let res = self.eval_stmts(&block.stmts);
+        self.env = prev;
+        res
+    }
+
     //
     // Expressions
     //
@@ -70,7 +86,7 @@ impl Interpreter {
         use ExprKind::*;
         match &expr.kind {
             Lit(lit) => self.eval_lit_expr(lit),
-            Var(var) => self.env.read(&var.name),
+            Var(var) => self.env.borrow().read(&var.name),
             Group(group) => self.eval_group_expr(group),
             Unary(unary) => self.eval_unary_expr(unary),
             Binary(binary) => self.eval_binary_expr(binary),
@@ -152,7 +168,7 @@ impl Interpreter {
 
     fn eval_assignment_expr(&mut self, assignment: &expr::Assignment) -> IResult<LoxValue> {
         let value = self.eval_expr(&assignment.value)?;
-        self.env.assign(&assignment.name, value)
+        self.env.borrow_mut().assign(&assignment.name, value)
     }
 }
 
