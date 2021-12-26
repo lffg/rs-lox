@@ -46,12 +46,10 @@ fn run(src: &str, interpreter: &mut Interpreter, options: &ReplOptions) {
     parser.options.repl_mode = true;
     let (stmts, errors) = parser.parse();
 
-    if !stmts.is_empty() {
-        if options.show_tree {
-            println!(/*   */ "┌─");
-            TreePrinter::new("│ ").print_stmts(&stmts);
-            println!(/*   */ "└─");
-        }
+    if !stmts.is_empty() && options.show_tree {
+        println!(/*   */ "┌─");
+        TreePrinter::new("│ ").print_stmts(&stmts);
+        println!(/*   */ "└─");
     }
 
     if !errors.is_empty() {
