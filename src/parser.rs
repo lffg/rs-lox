@@ -89,36 +89,37 @@ impl Parser<'_> {
     fn parse_var_decl(&mut self) -> PResult<Stmt> {
         use TokenKind::{Equal, Identifier, Semicolon};
 
-        let var_span = self.prev_token.span;
-        match self.current_token.kind {
-            Identifier(ref name) => {
-                let name = name.clone();
-                let name_span = self.advance().span;
-                let mut init = None;
-                if self.take(Equal) {
-                    init = Some(self.parse_expr()?);
-                }
-                let semicolon_span = self
-                    .consume(Semicolon, "Expected `;` after variable declaration")?
-                    .span;
-                Ok(Stmt {
-                    kind: StmtKind::from(stmt::Var {
-                        name,
-                        name_span,
-                        init,
-                    }),
-                    span: var_span.to(semicolon_span),
-                })
+        if let Identifier(ref name) = self.current_token.kind {
+            let var_span = self.prev_token.span;
+            let name = name.clone();
+            let name_span = self.advance().span;
+
+            let mut init = None;
+            if self.take(Equal) {
+                init = Some(self.parse_expr()?);
             }
-            _ => Err(self.unexpected("Expected variable name", Some(Identifier("<ident>".into())))),
+
+            let semicolon_span = self
+                .consume(Semicolon, "Expected `;` after variable declaration")?
+                .span;
+
+            return Ok(Stmt {
+                kind: StmtKind::from(stmt::Var {
+                    name,
+                    name_span,
+                    init,
+                }),
+                span: var_span.to(semicolon_span),
+            });
         }
+
+        Err(self.unexpected("Expected variable name", Some(Identifier("<ident>".into()))))
     }
 
     fn parse_stmt(&mut self) -> PResult<Stmt> {
         if self.take(TokenKind::Print) {
             return self.parse_print_stmt();
         }
-
         self.parse_expr_stmt()
     }
 
@@ -224,7 +225,7 @@ impl Parser<'_> {
     }
 
     fn parse_unary(&mut self) -> PResult<Expr> {
-        use TokenKind::{Bang, Minus, Show, Typeof};
+        use TokenKind::*;
         if let Bang | Minus | Typeof | Show = self.current_token.kind {
             let operator = self.advance().clone();
             let operand = self.parse_unary()?;
@@ -306,21 +307,21 @@ impl<'src> Parser<'src> {
         &self.prev_token
     }
 
-    /// Checks if the current token matches the expected one. If so, advances and returns true.
-    /// Otherwise returns false.
+    /// Checks if the current token matches the kind of the given one. In such case advances and
+    /// returns true. Otherwise returns false.
     fn take(&mut self, expected: TokenKind) -> bool {
-        if self.current_token.kind == expected {
+        if mem::discriminant(&self.current_token.kind) == mem::discriminant(&expected) {
             self.advance();
             return true;
         }
         false
     }
 
-    /// Checks if the current token matches the expected one. If so, advances and returns the
-    /// consumed token. Otherwise returns an expectation error with the given message.
-    /// Also returns `Err` in case of advancement error.
+    /// Checks if the current token matches the kind of the given one. In such case advances and
+    /// returns `Ok(_)` with the consumed token. Otherwise returns an expectation error with the
+    /// provided message.
     fn consume(&mut self, expected: TokenKind, msg: impl Into<String>) -> PResult<&Token> {
-        if self.current_token.kind == expected {
+        if mem::discriminant(&self.current_token.kind) == mem::discriminant(&expected) {
             Ok(self.advance())
         } else {
             Err(self.unexpected(msg, Some(expected)))
