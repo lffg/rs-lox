@@ -1,5 +1,3 @@
-use std::{cell::RefCell, rc::Rc};
-
 use crate::{
     ast::{
         expr::{self, Expr, ExprKind},
@@ -15,15 +13,16 @@ pub mod error;
 
 type IResult<T> = Result<T, RuntimeError>;
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Interpreter {
-    env: Rc<RefCell<Environment>>,
+    env: Environment,
 }
 
 // The interpreter implementation.
 impl Interpreter {
     pub fn new() -> Self {
-        Default::default()
+        let env = Environment::new();
+        Self { env }
     }
 
     pub fn interpret(&mut self, stmts: &[Stmt]) -> IResult<()> {
@@ -57,7 +56,7 @@ impl Interpreter {
             Some(ref expr) => self.eval_expr(expr)?,
             None => LoxValue::Nil,
         };
-        self.env.borrow_mut().define(var.name.clone(), value);
+        self.env.define(var.name.clone(), value);
         Ok(())
     }
 
@@ -70,11 +69,11 @@ impl Interpreter {
         Ok(())
     }
 
+    // What Rust allows me:
     fn eval_block_stmt(&mut self, block: &stmt::Block) -> IResult<()> {
-        let prev = Rc::clone(&self.env);
-        self.env = Environment::new_enclosed(Rc::clone(&prev));
+        self.env.add_scope();
         let res = self.eval_stmts(&block.stmts);
-        self.env = prev;
+        self.env.pop_scope();
         res
     }
 
@@ -86,7 +85,7 @@ impl Interpreter {
         use ExprKind::*;
         match &expr.kind {
             Lit(lit) => self.eval_lit_expr(lit),
-            Var(var) => self.env.borrow().read(&var.name),
+            Var(var) => self.env.read(&var.name),
             Group(group) => self.eval_group_expr(group),
             Unary(unary) => self.eval_unary_expr(unary),
             Binary(binary) => self.eval_binary_expr(binary),
@@ -168,7 +167,7 @@ impl Interpreter {
 
     fn eval_assignment_expr(&mut self, assignment: &expr::Assignment) -> IResult<LoxValue> {
         let value = self.eval_expr(&assignment.value)?;
-        self.env.borrow_mut().assign(&assignment.name, value)
+        self.env.assign(&assignment.name, value)
     }
 }
 

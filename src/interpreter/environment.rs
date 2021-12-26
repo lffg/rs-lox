@@ -1,55 +1,66 @@
 #![allow(dead_code)]
 
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::collections::HashMap;
 
 use crate::value::LoxValue;
 
 use super::{IResult, RuntimeError};
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Environment {
-    // Since more than one environment may have the same enclosing an mutations might happen (i.e.
-    // when assigning to an already defined variable), reference counting and interior mutability
-    // are required.
-    enclosing: Option<Rc<RefCell<Environment>>>,
     // This implementation is currently suboptimal due to `LoxValue` cloning and the use of owned
     // Strings as keys. Most of the current issues would be solved once string interning is
     // implemented and used to store lox's string values and identifiers.
-    values: HashMap<String, LoxValue>,
+    scopes: Vec<HashMap<String, LoxValue>>,
 }
 
 impl Environment {
-    pub fn new_enclosed(enclosing: Rc<RefCell<Environment>>) -> Rc<RefCell<Environment>> {
-        Rc::new(RefCell::new(Self {
-            enclosing: Some(enclosing),
-            values: HashMap::new(),
-        }))
+    /// Creates a new `Environment` with one scope (i.e. the global scope).
+    pub fn new() -> Self {
+        Self {
+            scopes: Vec::from([HashMap::new()]),
+        }
     }
 
+    /// Appends a new empty scope to the `scopes` stack.
+    pub fn add_scope(&mut self) {
+        self.scopes.push(HashMap::new());
+    }
+
+    /// Removes the innermost scope from the `scopes` stack.
+    ///
+    /// # Panics
+    ///
+    /// This will panic if there is only one scope in the stack (which must not be dropped as it is
+    /// the global scope).
+    pub fn pop_scope(&mut self) {
+        assert!(self.scopes.len() > 1, "Cannot drop the global scope.");
+        self.scopes.pop();
+    }
+
+    /// Defines a variable in the innermost scope.
     pub fn define(&mut self, name: String, value: LoxValue) {
-        self.values.insert(name, value);
+        self.scopes.last_mut().unwrap().insert(name, value);
     }
 
+    /// Assigns a variable.
     pub fn assign(&mut self, name: &str, value: LoxValue) -> IResult<LoxValue> {
-        match self.values.get_mut(name) {
-            Some(value_ref) => {
+        for scope in self.scopes.iter_mut().rev() {
+            if let Some(value_ref) = scope.get_mut(name) {
                 *value_ref = value.clone();
-                Ok(value)
+                return Ok(value);
             }
-            None => match &self.enclosing {
-                Some(enclosing) => enclosing.borrow_mut().assign(name, value),
-                None => Err(RuntimeError::UndefinedVariable { name: name.into() }),
-            },
         }
+        Err(RuntimeError::UndefinedVariable { name: name.into() })
     }
 
+    /// Reads a variable.
     pub fn read(&self, name: &str) -> IResult<LoxValue> {
-        match self.values.get(name) {
-            Some(name) => Ok(name.clone()),
-            None => match &self.enclosing {
-                Some(enclosing) => enclosing.borrow().read(name),
-                None => Err(RuntimeError::UndefinedVariable { name: name.into() }),
-            },
+        for scope in self.scopes.iter().rev() {
+            if let Some(value) = scope.get(name) {
+                return Ok(value.clone());
+            }
         }
+        Err(RuntimeError::UndefinedVariable { name: name.into() })
     }
 }
