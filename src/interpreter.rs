@@ -43,6 +43,7 @@ impl Interpreter {
         use StmtKind::*;
         match &stmt.kind {
             Var(var) => self.eval_var_stmt(var),
+            If(if_stmt) => self.eval_if_stmt(if_stmt),
             Print(print) => self.eval_print_stmt(print),
             Block(block) => self.eval_block_stmt(block),
             Expr(expr) => self.eval_expr(&expr.expr).map(drop),
@@ -56,6 +57,16 @@ impl Interpreter {
             None => LoxValue::Nil,
         };
         self.env.define(var.name.clone(), value);
+        Ok(())
+    }
+
+    fn eval_if_stmt(&mut self, if_stmt: &stmt::If) -> IResult<()> {
+        let cond_value = self.eval_expr(&if_stmt.cond)?;
+        if lox_value_to_rust_bool(cond_value) {
+            self.eval_stmt(&if_stmt.then_branch)?;
+        } else if let Some(ref else_branch) = if_stmt.else_branch {
+            self.eval_stmt(else_branch)?;
+        }
         Ok(())
     }
 

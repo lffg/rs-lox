@@ -39,10 +39,12 @@ pub struct Parser<'src> {
 //
 // var_decl    ::= "var" IDENTIFIER ( "=" expr )? ";" ;
 //
-// stmt        ::= print_stmt
+// stmt        ::= if_stmt
+//               | print_stmt
 //               | block_stmt
 //               | expr_stmt ;
 //
+// if_stmt     ::= "if" "(" expr ")" statement ( "else" statement )? ;
 // print_stmt  ::= "print" expr ";" ;
 // block_stmt  ::= "{" declaration* "}" ;
 // expr_stmt   ::= expr ";" ;
@@ -133,6 +135,7 @@ impl Parser<'_> {
 
     fn parse_stmt(&mut self) -> PResult<Stmt> {
         match self.current_token.kind {
+            TokenKind::If => self.parse_if_stmt(),
             TokenKind::Print => self.parse_print_stmt(),
             TokenKind::LeftBrace => {
                 let (stmts, span) = self.parse_block()?;
@@ -141,6 +144,33 @@ impl Parser<'_> {
             }
             _ => self.parse_expr_stmt(),
         }
+    }
+
+    fn parse_if_stmt(&mut self) -> PResult<Stmt> {
+        use TokenKind::*;
+        let if_token_span = self.consume(If, "")?.span;
+
+        self.consume(LeftParen, "Expect parenthesized expression after `if`.")?;
+        let cond = self.parse_expr()?;
+        self.consume(RightParen, "Must close parentheses after `if`.")?;
+
+        let then_branch = self.parse_stmt()?;
+        let mut else_branch = None;
+        if self.take(Else) {
+            else_branch = Some(self.parse_stmt()?);
+        }
+
+        Ok(Stmt {
+            span: if_token_span.to(else_branch
+                .as_ref()
+                .map(|it| it.span)
+                .unwrap_or(then_branch.span)),
+            kind: StmtKind::from(stmt::If {
+                cond,
+                then_branch: then_branch.into(),
+                else_branch: else_branch.map(|it| it.into()),
+            }),
+        })
     }
 
     fn parse_print_stmt(&mut self) -> PResult<Stmt> {
