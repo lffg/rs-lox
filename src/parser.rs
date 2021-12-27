@@ -8,6 +8,7 @@ use crate::{
     parser::{error::ParseError, options::ParserOptions, scanner::Scanner},
     span::Span,
     token::{Token, TokenKind},
+    value::LoxValue,
 };
 
 pub mod error;
@@ -40,12 +41,15 @@ pub struct Parser<'src> {
 // var_decl    ::= "var" IDENTIFIER ( "=" expr )? ";" ;
 //
 // stmt        ::= if_stmt
+//               | for_stmt
 //               | while_stmt
 //               | print_stmt
 //               | block_stmt
 //               | expr_stmt ;
 //
 // if_stmt     ::= "if" "(" expr ")" statement ( "else" statement )? ;
+// for_stmt    ::= "for" for_clauses statement ;
+// for_clauses ::= "(" ( var_decl | expr_stmt | ";" ) expr? ";" expr? ")"
 // while_stmt  ::= "while" "(" expr ")" statement ;
 // print_stmt  ::= "print" expr ";" ;
 // block_stmt  ::= "{" declaration* "}" ;
@@ -141,6 +145,7 @@ impl Parser<'_> {
         use TokenKind::*;
         match self.current_token.kind {
             If => self.parse_if_stmt(),
+            For => self.parse_for_stmt(),
             While => self.parse_while_stmt(),
             Print => self.parse_print_stmt(),
             LeftBrace => {
@@ -177,6 +182,97 @@ impl Parser<'_> {
                 else_branch: else_branch.map(|it| it.into()),
             }),
         })
+    }
+
+    // In this implementation, all `for` statements are translated to `while` statements by the
+    // parser. Hence there is not even a `StmtKind::For` kind since it is a syntactic sugar. E.g.:
+    //
+    // ```
+    // for (var i = 1; i <= 10; i = i + 1) { print show i; }
+    // ```
+    //
+    // Is translated to:
+    //
+    // ```
+    // {
+    //    var i = 1;
+    //    while (i <= 10) {
+    //      print show i;
+    //      i = i + 1;
+    //    }
+    // }
+    // ```
+    fn parse_for_stmt(&mut self) -> PResult<Stmt> {
+        use TokenKind::*;
+        let for_token_span = self.consume(For, "")?.span;
+
+        self.consume(LeftParen, "Expect parenthesized expression after `for`.")?;
+        let init = match self.current_token.kind {
+            Semicolon => {
+                self.advance();
+                None
+            }
+            Var => Some(self.parse_var_decl()?),
+            _ => Some(self.parse_expr_stmt()?),
+        };
+        let cond = match self.current_token.kind {
+            // If there is none condition in the for clauses, the parser creates a synthetic `true`
+            // literal expression. This must be placed here to capture the current span (†).
+            Semicolon => Expr {
+                kind: ExprKind::from(expr::Lit {
+                    value: LoxValue::Boolean(true),
+                }),
+                span: {
+                    let lo = self.current_token.span.lo; // <--- This span. (†)
+                    Span::new(lo, lo)
+                },
+            },
+            _ => self.parse_expr()?,
+        };
+        self.consume(Semicolon, "Expect `;` after `for` condition.")?;
+        let incr = match self.current_token.kind {
+            RightParen => None,
+            _ => Some(self.parse_expr()?),
+        };
+        self.consume(RightParen, "Must close parentheses after `for` clauses.")?;
+        let mut original_body = self.parse_stmt()?;
+
+        // Desugar `for` increment:
+        if let Some(incr) = incr {
+            original_body = Stmt {
+                span: original_body.span,
+                kind: StmtKind::from(stmt::Block {
+                    stmts: Vec::from([
+                        original_body,
+                        Stmt {
+                            span: incr.span,
+                            kind: StmtKind::from(stmt::Expr { expr: incr }),
+                        },
+                    ]),
+                }),
+            };
+        }
+
+        // Create the while:
+        let mut body = Stmt {
+            span: for_token_span.to(original_body.span),
+            kind: StmtKind::from(stmt::While {
+                cond,
+                body: original_body.into(),
+            }),
+        };
+
+        // Desugar `for` initializer:
+        if let Some(init) = init {
+            body = Stmt {
+                span: body.span,
+                kind: StmtKind::from(stmt::Block {
+                    stmts: Vec::from([init, body]),
+                }),
+            };
+        }
+
+        Ok(body)
     }
 
     fn parse_while_stmt(&mut self) -> PResult<Stmt> {
