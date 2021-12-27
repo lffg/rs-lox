@@ -10,7 +10,10 @@ pub struct Expr {
     pub span: Span,
 }
 
-make_ast_enum!(ExprKind, [Lit, Var, Group, Unary, Binary, Assignment]);
+make_ast_enum!(
+    ExprKind,
+    [Lit, Var, Group, Unary, Binary, Logical, Assignment]
+);
 
 #[derive(Debug)]
 pub struct Lit {
@@ -35,6 +38,13 @@ pub struct Unary {
 
 #[derive(Debug)]
 pub struct Binary {
+    pub left: Box<Expr>,
+    pub operator: Token,
+    pub right: Box<Expr>,
+}
+
+#[derive(Debug)]
+pub struct Logical {
     pub left: Box<Expr>,
     pub operator: Token,
     pub right: Box<Expr>,

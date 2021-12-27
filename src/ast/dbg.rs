@@ -103,11 +103,13 @@ impl TreePrinter {
                     s.print_expr(&unary.operand);
                 });
             }
-            Binary(binary) => {
-                self.emit(format!("Binary {}", binary.operator));
+            #[rustfmt::skip]
+            Binary(expr::Binary { operator, left, right }) |
+            Logical(expr::Logical { operator, left, right }) => {
+                self.emit(format!("Binary {}", operator));
                 self.nest(|s| {
-                    s.print_expr(&binary.left);
-                    s.print_expr(&binary.right);
+                    s.print_expr(left);
+                    s.print_expr(right);
                 });
             }
             Assignment(assignment) => {

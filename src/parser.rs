@@ -51,7 +51,9 @@ pub struct Parser<'src> {
 //
 // expr        ::= assignment ;
 // assignment  ::= IDENTIFIER "=" expr
-//               | equality ;
+//               | logic_or ;
+// logic_or    ::= logic_and ( "or" logic_and )* ;
+// logic_and   ::= equality ( "and" equality )* ;
 // equality    ::= comparison ( ( "==" | "!=" ) comparison )* ;
 // comparison  ::= term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 // term        ::= factor ( ( "+" | "-" ) factor )* ;
@@ -229,7 +231,7 @@ impl Parser<'_> {
     fn parse_assignment(&mut self) -> PResult<Expr> {
         // The parser does not yet know if `left` should be used as an expression (i.e. an rvalue)
         // or as an "assignment target" (i.e. an lvalue).
-        let left = self.parse_equality()?;
+        let left = self.parse_or()?;
 
         if self.take(TokenKind::Equal) {
             // Since assignments are right associative, we use right recursion to parse its value.
@@ -258,10 +260,29 @@ impl Parser<'_> {
         Ok(left)
     }
 
+    fn parse_or(&mut self) -> PResult<Expr> {
+        bin_expr!(
+            self,
+            parse_as = Logical,
+            token_kinds = Or,
+            next_production = parse_and
+        )
+    }
+
+    fn parse_and(&mut self) -> PResult<Expr> {
+        bin_expr!(
+            self,
+            parse_as = Logical,
+            token_kinds = And,
+            next_production = parse_equality
+        )
+    }
+
     fn parse_equality(&mut self) -> PResult<Expr> {
         bin_expr!(
             self,
-            kinds = EqualEqual | BangEqual,
+            parse_as = Binary,
+            token_kinds = EqualEqual | BangEqual,
             next_production = parse_comparison
         )
     }
@@ -269,23 +290,26 @@ impl Parser<'_> {
     fn parse_comparison(&mut self) -> PResult<Expr> {
         bin_expr!(
             self,
-            kinds = Greater | GreaterEqual | Less | LessEqual,
+            parse_as = Binary,
+            token_kinds = Greater | GreaterEqual | Less | LessEqual,
             next_production = parse_term
         )
     }
 
     fn parse_term(&mut self) -> PResult<Expr> {
         bin_expr!(
-            self, //↵
-            kinds = Plus | Minus,
+            self,
+            parse_as = Binary,
+            token_kinds = Plus | Minus,
             next_production = parse_factor
         )
     }
 
     fn parse_factor(&mut self) -> PResult<Expr> {
         bin_expr!(
-            self, //↵
-            kinds = Star | Slash,
+            self,
+            parse_as = Binary,
+            token_kinds = Star | Slash,
             next_production = parse_unary
         )
     }
@@ -460,14 +484,14 @@ impl<'src> Parser<'src> {
 
 /// Parses a binary expression.
 macro_rules! bin_expr {
-    ($self:expr, kinds = $( $kind:ident )|+, next_production = $next:ident) => {{
+    ($self:expr, parse_as = $ast_kind:ident, token_kinds = $( $kind:ident )|+, next_production = $next:ident) => {{
         let mut expr = $self.$next()?;
         while let $( TokenKind::$kind )|+ = $self.current_token.kind {
             let operator = $self.advance().clone();
             let right = $self.$next()?;
             expr = Expr {
                 span: expr.span.to(right.span),
-                kind: ExprKind::from(expr::Binary {
+                kind: ExprKind::from(expr::$ast_kind {
                     left: expr.into(),
                     operator,
                     right: right.into(),

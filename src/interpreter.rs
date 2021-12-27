@@ -62,7 +62,7 @@ impl Interpreter {
 
     fn eval_if_stmt(&mut self, if_stmt: &stmt::If) -> IResult<()> {
         let cond_value = self.eval_expr(&if_stmt.cond)?;
-        if lox_value_to_rust_bool(cond_value) {
+        if lox_is_truthy(&cond_value) {
             self.eval_stmt(&if_stmt.then_branch)?;
         } else if let Some(ref else_branch) = if_stmt.else_branch {
             self.eval_stmt(else_branch)?;
@@ -99,6 +99,7 @@ impl Interpreter {
             Group(group) => self.eval_group_expr(group),
             Unary(unary) => self.eval_unary_expr(unary),
             Binary(binary) => self.eval_binary_expr(binary),
+            Logical(logical) => self.eval_logical_expr(logical),
             Assignment(assignment) => self.eval_assignment_expr(assignment),
         }
     }
@@ -124,7 +125,7 @@ impl Interpreter {
                     operation_span: unary.operator.span,
                 }),
             },
-            TokenKind::Bang => Ok(LoxValue::Boolean(!lox_value_to_rust_bool(operand))),
+            TokenKind::Bang => Ok(LoxValue::Boolean(!lox_is_truthy(&operand))),
             TokenKind::Show => Ok(LoxValue::String(operand.to_string())),
             TokenKind::Typeof => Ok(LoxValue::String(operand.type_name().into())),
             unexpected => unreachable!("Invalid unary operator ({:?}).", unexpected),
@@ -163,8 +164,8 @@ impl Interpreter {
                 bin_number_operator!(left / right, binary.operator)
             }
 
-            TokenKind::EqualEqual => Ok(LoxValue::Boolean(lox_value_equal(&left, &right))),
-            TokenKind::BangEqual => Ok(LoxValue::Boolean(!lox_value_equal(&left, &right))),
+            TokenKind::EqualEqual => Ok(LoxValue::Boolean(lox_is_equal(&left, &right))),
+            TokenKind::BangEqual => Ok(LoxValue::Boolean(!lox_is_equal(&left, &right))),
 
             TokenKind::Greater => bin_comparison_operator!(left > right, binary.operator),
             TokenKind::GreaterEqual => bin_comparison_operator!(left >= right, binary.operator),
@@ -172,6 +173,15 @@ impl Interpreter {
             TokenKind::LessEqual => bin_comparison_operator!(left <= right, binary.operator),
 
             unexpected => unreachable!("Invalid binary operator ({:?}).", unexpected),
+        }
+    }
+
+    fn eval_logical_expr(&mut self, logical: &expr::Logical) -> IResult<LoxValue> {
+        let left = self.eval_expr(&logical.left)?;
+        match &logical.operator.kind {
+            TokenKind::And if !lox_is_truthy(&left) => Ok(left),
+            TokenKind::Or if lox_is_truthy(&left) => Ok(left),
+            _ => self.eval_expr(&logical.right),
         }
     }
 
@@ -195,17 +205,17 @@ impl Default for Interpreter {
 /// Tries to convert a `LoxValue` to a Rust bool.
 ///   * Truthy lox values: all numbers (incl. 0), all strings (incl. "") and `true`.
 ///   * Falsy lox values: `false` and `nil`.
-fn lox_value_to_rust_bool(value: LoxValue) -> bool {
+fn lox_is_truthy(value: &LoxValue) -> bool {
     use LoxValue::*;
     match value {
-        Boolean(inner) => inner,
+        Boolean(inner) => *inner,
         Number(_) | String(_) => true,
         Nil => false,
     }
 }
 
 /// Checks if two `LoxValue`s are equal. No type coercion is performed so both types must be equal.
-fn lox_value_equal(a: &LoxValue, b: &LoxValue) -> bool {
+fn lox_is_equal(a: &LoxValue, b: &LoxValue) -> bool {
     use LoxValue::*;
     match (a, b) {
         (Boolean(a), Boolean(b)) => a == b,
