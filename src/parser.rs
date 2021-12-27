@@ -105,7 +105,7 @@ impl Parser<'_> {
     fn parse_var_decl(&mut self) -> PResult<Stmt> {
         use TokenKind::*;
         let var_span = self.consume(Var, "")?.span;
-        if let Identifier(ref name) = self.current_token.kind {
+        if let Identifier(name) = &self.current_token.kind {
             let name = name.clone();
             let name_span = self.advance().span;
 
@@ -332,7 +332,7 @@ impl Parser<'_> {
 
     fn parse_primary(&mut self) -> PResult<Expr> {
         use TokenKind::*;
-        match self.current_token.kind {
+        match &self.current_token.kind {
             String(_) | Number(_) | True | False | Nil => {
                 let token = self.advance();
                 Ok(Expr {
@@ -340,7 +340,7 @@ impl Parser<'_> {
                     span: token.span,
                 })
             }
-            Identifier(ref name) => Ok(Expr {
+            Identifier(name) => Ok(Expr {
                 kind: expr::Var { name: name.clone() }.into(),
                 span: self.advance().span,
             }),

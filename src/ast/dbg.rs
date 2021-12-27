@@ -56,7 +56,7 @@ impl TreePrinter {
                     s.nest(|s| s.print_expr(&if_stmt.cond));
                     s.emit("Then");
                     s.nest(|s| s.print_stmt(&if_stmt.then_branch));
-                    if let Some(ref else_branch) = if_stmt.else_branch {
+                    if let Some(else_branch) = &if_stmt.else_branch {
                         s.emit("Else");
                         s.nest(|s| s.print_stmt(else_branch));
                     }

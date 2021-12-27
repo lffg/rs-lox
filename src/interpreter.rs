@@ -52,8 +52,8 @@ impl Interpreter {
     }
 
     fn eval_var_stmt(&mut self, var: &stmt::Var) -> IResult<()> {
-        let value = match var.init {
-            Some(ref expr) => self.eval_expr(expr)?,
+        let value = match &var.init {
+            Some(expr) => self.eval_expr(expr)?,
             None => LoxValue::Nil,
         };
         self.env.define(var.name.clone(), value);
@@ -64,7 +64,7 @@ impl Interpreter {
         let cond_value = self.eval_expr(&if_stmt.cond)?;
         if lox_is_truthy(&cond_value) {
             self.eval_stmt(&if_stmt.then_branch)?;
-        } else if let Some(ref else_branch) = if_stmt.else_branch {
+        } else if let Some(else_branch) = &if_stmt.else_branch {
             self.eval_stmt(else_branch)?;
         }
         Ok(())
