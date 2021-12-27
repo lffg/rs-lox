@@ -16,6 +16,8 @@ pub mod scanner;
 
 type PResult<T> = Result<T, ParseError>;
 
+pub type ParserOutcome = (Vec<Stmt>, Vec<ParseError>);
+
 pub struct Parser<'src> {
     scanner: Peekable<Scanner<'src>>,
     current_token: Token,
@@ -64,7 +66,7 @@ pub struct Parser<'src> {
 //
 // Each production has a correspondent method in the following implementation.
 impl Parser<'_> {
-    pub fn parse(mut self) -> (Vec<Stmt>, Vec<ParseError>) {
+    pub fn parse(mut self) -> ParserOutcome {
         (self.parse_program(), self.diagnostics)
     }
 

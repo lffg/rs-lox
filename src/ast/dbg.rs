@@ -1,12 +1,33 @@
-use crate::ast::{expr, stmt};
+use crate::{
+    ast::{expr, stmt},
+    parser::scanner::Scanner,
+};
 
-pub struct TreePrinter {
+/// Prints the scanner result for the given source.
+/// Will scan the entire source string and discard the result.
+pub fn print_scanned_tokens(src: &str) {
+    let scanner = Scanner::new(src);
+    println!("┌─");
+    for token in scanner {
+        println!("│ {:?}", token);
+    }
+    println!("└─");
+}
+
+/// Prints the given program tree.
+pub fn print_program_tree(stmts: &[stmt::Stmt]) {
+    println!("┌─");
+    TreePrinter::new("│ ").print_stmts(stmts);
+    println!("└─");
+}
+
+struct TreePrinter {
     prefix: &'static str,
     level: usize,
 }
 
 impl TreePrinter {
-    pub fn print_stmts(&mut self, stmts: &[stmt::Stmt]) {
+    fn print_stmts(&mut self, stmts: &[stmt::Stmt]) {
         for (i, stmt) in stmts.iter().enumerate() {
             self.print_stmt(stmt);
             if i != stmts.len() - 1 {
@@ -15,7 +36,7 @@ impl TreePrinter {
         }
     }
 
-    pub fn print_stmt(&mut self, stmt: &stmt::Stmt) {
+    fn print_stmt(&mut self, stmt: &stmt::Stmt) {
         use stmt::StmtKind::*;
         match &stmt.kind {
             Var(var) => {
@@ -48,7 +69,7 @@ impl TreePrinter {
         }
     }
 
-    pub fn print_expr(&mut self, expr: &expr::Expr) {
+    fn print_expr(&mut self, expr: &expr::Expr) {
         use expr::ExprKind::*;
         match &expr.kind {
             Lit(expr::Lit { value, .. }) => {
@@ -87,7 +108,7 @@ impl TreePrinter {
         }
     }
 
-    pub fn new(prefix: &'static str) -> Self {
+    fn new(prefix: &'static str) -> Self {
         Self { level: 0, prefix }
     }
 
