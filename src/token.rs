@@ -105,7 +105,7 @@ impl Display for TokenKind {
             Whitespace(whitespace) => whitespace.fmt(f),
             LeftParen => f.write_str("("),
             RightParen => f.write_str(")"),
-            LeftBrace => f.write_str("{{"),
+            LeftBrace => f.write_str("{"),
             RightBrace => f.write_str("}"),
             Plus => f.write_str("+"),
             Minus => f.write_str("-"),

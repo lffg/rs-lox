@@ -103,7 +103,10 @@ impl Parser<'_> {
 
     fn parse_decl(&mut self) -> PResult<Stmt> {
         match self.current_token.kind {
-            TokenKind::Var => self.parse_var_decl(),
+            TokenKind::Var => {
+                self.advance();
+                self.parse_var_decl()
+            }
             _ => self.parse_stmt(),
         }
     }
@@ -547,7 +550,7 @@ impl<'src> Parser<'src> {
     fn unexpected(&self, message: impl Into<String>, expected: Option<TokenKind>) -> ParseError {
         let mut message = message.into();
         if message.is_empty() {
-            message = "The spanned token is not expected. This is a compiler bug.".into();
+            message = "The current token is not expected. This is a parser bug.".into();
         }
         ParseError::UnexpectedToken {
             message,

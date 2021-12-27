@@ -56,6 +56,8 @@ impl Repl {
     }
 
     fn start(mut self) -> io::Result<()> {
+        eprintln!("Welcome to rs-lox. Enter Ctrl+D or `:exit` to exit.\n");
+
         while !self.done {
             let line = self.read_line()?;
 
