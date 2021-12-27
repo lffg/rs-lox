@@ -44,6 +44,7 @@ impl Interpreter {
         match &stmt.kind {
             Var(var) => self.eval_var_stmt(var),
             If(if_stmt) => self.eval_if_stmt(if_stmt),
+            While(while_stmt) => self.eval_while_stmt(while_stmt),
             Print(print) => self.eval_print_stmt(print),
             Block(block) => self.eval_block_stmt(block),
             Expr(expr) => self.eval_expr(&expr.expr).map(drop),
@@ -66,6 +67,13 @@ impl Interpreter {
             self.eval_stmt(&if_stmt.then_branch)?;
         } else if let Some(else_branch) = &if_stmt.else_branch {
             self.eval_stmt(else_branch)?;
+        }
+        Ok(())
+    }
+
+    fn eval_while_stmt(&mut self, while_stmt: &stmt::While) -> IResult<()> {
+        while lox_is_truthy(&self.eval_expr(&while_stmt.cond)?) {
+            self.eval_stmt(&while_stmt.body)?;
         }
         Ok(())
     }

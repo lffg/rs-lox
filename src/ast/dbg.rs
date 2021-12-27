@@ -62,6 +62,15 @@ impl TreePrinter {
                     }
                 })
             }
+            While(while_stmt) => {
+                self.emit("While Stmt");
+                self.nest(|s| {
+                    s.emit("Cond Expr");
+                    s.nest(|s| s.print_expr(&while_stmt.cond));
+                    s.emit("Body");
+                    s.nest(|s| s.print_stmt(&while_stmt.body));
+                })
+            }
             Print(print) => {
                 self.emit("Print Stmt");
                 self.nest(|s| {

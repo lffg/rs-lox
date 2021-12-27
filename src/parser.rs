@@ -40,11 +40,13 @@ pub struct Parser<'src> {
 // var_decl    ::= "var" IDENTIFIER ( "=" expr )? ";" ;
 //
 // stmt        ::= if_stmt
+//               | while_stmt
 //               | print_stmt
 //               | block_stmt
 //               | expr_stmt ;
 //
 // if_stmt     ::= "if" "(" expr ")" statement ( "else" statement )? ;
+// while_stmt  ::= "while" "(" expr ")" statement ;
 // print_stmt  ::= "print" expr ";" ;
 // block_stmt  ::= "{" declaration* "}" ;
 // expr_stmt   ::= expr ";" ;
@@ -136,10 +138,12 @@ impl Parser<'_> {
     //
 
     fn parse_stmt(&mut self) -> PResult<Stmt> {
+        use TokenKind::*;
         match self.current_token.kind {
-            TokenKind::If => self.parse_if_stmt(),
-            TokenKind::Print => self.parse_print_stmt(),
-            TokenKind::LeftBrace => {
+            If => self.parse_if_stmt(),
+            While => self.parse_while_stmt(),
+            Print => self.parse_print_stmt(),
+            LeftBrace => {
                 let (stmts, span) = self.parse_block()?;
                 let kind = stmt::Block { stmts }.into();
                 Ok(Stmt { kind, span })
@@ -171,6 +175,24 @@ impl Parser<'_> {
                 cond,
                 then_branch: then_branch.into(),
                 else_branch: else_branch.map(|it| it.into()),
+            }),
+        })
+    }
+
+    fn parse_while_stmt(&mut self) -> PResult<Stmt> {
+        use TokenKind::*;
+        let while_token_span = self.consume(While, "")?.span;
+
+        self.consume(LeftParen, "Expect parenthesized expression after `while`.")?;
+        let cond = self.parse_expr()?;
+        self.consume(RightParen, "Must close parentheses after `if`.")?;
+        let body = self.parse_stmt()?;
+
+        Ok(Stmt {
+            span: while_token_span.to(body.span),
+            kind: StmtKind::from(stmt::While {
+                cond,
+                body: body.into(),
             }),
         })
     }
