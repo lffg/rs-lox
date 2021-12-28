@@ -34,3 +34,4 @@ result: 7
     - the proper api? trait? function?
     - what each "node" is exactly?
     - refactor `ast::dbg::TreePrinter` to use the new ast children api
+- try: `;5;#` and `;5;#;` -> the trees should be the same, but aren't

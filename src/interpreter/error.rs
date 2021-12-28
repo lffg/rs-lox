@@ -37,7 +37,7 @@ impl Display for RuntimeError {
             }
 
             UndefinedVariable { name } => {
-                write!(f, "Undefined variable `{}`.", name)
+                write!(f, "Undefined variable `{}`", name)
             }
 
             ZeroDivision { operation_span } => {

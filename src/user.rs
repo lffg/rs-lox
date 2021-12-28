@@ -5,28 +5,28 @@ use std::{
 };
 
 use crate::{
-    ast,
+    ast::{self, stmt::Stmt},
     interpreter::Interpreter,
-    parser::{Parser, ParserOutcome},
+    parser::{error::ParseError, Parser},
 };
 
-pub fn handle_parser_outcome((stmts, errors): ParserOutcome, interpreter: &mut Interpreter) {
+fn maybe_print_parse_errors(errors: &[ParseError]) {
     if !errors.is_empty() {
         for error in errors {
             eprintln!("{}", error);
         }
-        return;
-    }
-
-    if let Err(error) = interpreter.interpret(&stmts) {
-        eprintln!("{}", error);
     }
 }
 
 pub fn run_file(file: impl AsRef<Path>) -> io::Result<()> {
     let src = fs::read_to_string(file)?;
-    let parsed = Parser::new(&src).parse();
-    handle_parser_outcome(parsed, &mut Interpreter::new());
+    let (stmts, errors, _) = Parser::new(&src).parse();
+    maybe_print_parse_errors(&errors);
+    if errors.is_empty() {
+        if let Err(error) = Interpreter::new().interpret(&stmts) {
+            eprintln!("{}", error);
+        }
+    }
     Ok(())
 }
 
@@ -35,6 +35,7 @@ pub fn run_repl() -> io::Result<()> {
 }
 
 struct Repl {
+    current_src: Option<String>,
     interpreter: Interpreter,
     show_lex: bool,
     show_ast: bool,
@@ -49,6 +50,7 @@ impl Repl {
     fn new() -> Self {
         Self {
             interpreter: Interpreter::new(),
+            current_src: None,
             show_lex: false,
             show_ast: false,
             done: false,
@@ -59,26 +61,64 @@ impl Repl {
         eprintln!("Welcome to rs-lox. Enter Ctrl+D or `:exit` to exit.\n");
 
         while !self.done {
-            let line = self.read_line()?;
+            let (line, is_eof) = self.read_line()?;
+
+            if is_eof {
+                eprintln!();
+            }
 
             if let Some(raw_cmd) = line.trim().strip_prefix(':') {
                 self.handle_command(raw_cmd);
                 continue;
             }
 
-            let mut parser = Parser::new(&line);
+            match self.current_src.as_mut() {
+                Some(string) => string.push_str(&line),
+                None => self.current_src = Some(line),
+            }
+
+            let mut parser = Parser::new(self.current_src.as_ref().unwrap());
             parser.options.repl_mode = true;
-            let (stmts, errors) = parser.parse();
+            let (stmts, errors, allow_continuation) = parser.parse();
 
             if self.show_ast && !stmts.is_empty() {
                 ast::dbg::print_program_tree(&stmts);
             }
-            handle_parser_outcome((stmts, errors), &mut self.interpreter);
+            if !errors.is_empty() {
+                if !allow_continuation || is_eof {
+                    maybe_print_parse_errors(&errors);
+                    self.current_src = None;
+                }
+                continue;
+            }
+            self.interpret(&stmts)
         }
         Ok(())
     }
 
-    pub fn handle_command(&mut self, raw_cmd: &str) {
+    fn interpret(&mut self, stmts: &[Stmt]) {
+        if let Err(error) = self.interpreter.interpret(stmts) {
+            eprintln!("{}", error);
+        }
+        self.current_src = None;
+    }
+
+    fn read_line(&mut self) -> io::Result<(String, bool)> {
+        let prompt = if self.current_src.is_none() {
+            ">>>"
+        } else {
+            "..."
+        };
+        print!("{} ", prompt);
+        io::stdout().flush()?;
+
+        let mut line = String::new();
+        let is_eof = io::stdin().read_line(&mut line)? == 0;
+        self.done = is_eof && self.current_src.is_none();
+        Ok((line, is_eof))
+    }
+
+    fn handle_command(&mut self, raw_cmd: &str) {
         let cmd: Vec<_> = raw_cmd
             .split_ascii_whitespace()
             .filter(|s| !s.is_empty())
@@ -90,17 +130,6 @@ impl Repl {
             "help" => eprintln!(":exit | :lex | :ast | :help"),
             _ => eprintln!("Invalid command. Type `:help` for guidance."),
         }
-    }
-
-    pub fn read_line(&mut self) -> io::Result<String> {
-        print!(">>> ");
-        io::stdout().flush()?;
-
-        let mut line = String::new();
-        // If `Ctrl+D` (user's Eof), `read_line` returns `0` (bytes read).
-        // In such case, `self.done` must be set to `true`.
-        self.done = io::stdin().read_line(&mut line)? == 0;
-        Ok(line)
     }
 }
 

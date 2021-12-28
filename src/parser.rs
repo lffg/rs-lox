@@ -17,7 +17,7 @@ pub mod scanner;
 
 type PResult<T> = Result<T, ParseError>;
 
-pub type ParserOutcome = (Vec<Stmt>, Vec<ParseError>);
+pub type ParserOutcome = (Vec<Stmt>, Vec<ParseError>, bool);
 
 pub struct Parser<'src> {
     scanner: Peekable<Scanner<'src>>,
@@ -77,7 +77,18 @@ pub struct Parser<'src> {
 // Each production has a correspondent method in the following implementation.
 impl Parser<'_> {
     pub fn parse(mut self) -> ParserOutcome {
-        (self.parse_program(), self.diagnostics)
+        let stmts = self.parse_program();
+
+        let allow_continuation = self.options.repl_mode
+            && self.current_token.kind == TokenKind::Eof
+            && self.diagnostics.len() == 1
+            && self
+                .diagnostics
+                .last()
+                .map(|error| error.allows_continuation())
+                .unwrap_or(false);
+
+        (stmts, self.diagnostics, allow_continuation)
     }
 
     fn parse_program(&mut self) -> Vec<Stmt> {
@@ -113,7 +124,8 @@ impl Parser<'_> {
 
     fn parse_var_decl(&mut self) -> PResult<Stmt> {
         use TokenKind::*;
-        let var_span = self.consume(Var, "")?.span;
+        let var_span = self.consume(Var, S_MUST)?.span;
+
         if let Identifier(name) = &self.current_token.kind {
             let name = name.clone();
             let name_span = self.advance().span;
@@ -162,17 +174,20 @@ impl Parser<'_> {
 
     fn parse_if_stmt(&mut self) -> PResult<Stmt> {
         use TokenKind::*;
-        let if_token_span = self.consume(If, "")?.span;
+        let if_token_span = self.consume(If, S_MUST)?.span;
 
-        self.consume(LeftParen, "Expect parenthesized expression after `if`.")?;
-        let cond = self.parse_expr()?;
-        self.consume(RightParen, "Must close parentheses after `if`.")?;
-
+        let cond = self.paired(
+            LeftParen,
+            "Expected `if` condition group opening",
+            "Expected `if` condition group to be closed",
+            |this| this.parse_expr(),
+        )?;
         let then_branch = self.parse_stmt()?;
-        let mut else_branch = None;
-        if self.take(Else) {
-            else_branch = Some(self.parse_stmt()?);
-        }
+        let else_branch = if self.take(Else) {
+            Some(self.parse_stmt()?)
+        } else {
+            None
+        };
 
         Ok(Stmt {
             span: if_token_span.to(else_branch
@@ -207,46 +222,52 @@ impl Parser<'_> {
     // ```
     fn parse_for_stmt(&mut self) -> PResult<Stmt> {
         use TokenKind::*;
-        let for_token_span = self.consume(For, "")?.span;
+        let for_token_span = self.consume(For, S_MUST)?.span;
 
-        self.consume(LeftParen, "Expect parenthesized expression after `for`.")?;
-        let init = match self.current_token.kind {
-            Semicolon => {
-                self.advance();
-                None
-            }
-            Var => Some(self.parse_var_decl()?),
-            _ => Some(self.parse_expr_stmt()?),
-        };
-        let cond = match self.current_token.kind {
-            // If there is none condition in the for clauses, the parser creates a synthetic `true`
-            // literal expression. This must be placed here to capture the current span (†).
-            Semicolon => Expr {
-                kind: ExprKind::from(expr::Lit {
-                    value: LoxValue::Boolean(true),
-                }),
-                span: {
-                    let lo = self.current_token.span.lo; // <--- This span. (†)
-                    Span::new(lo, lo)
-                },
+        let (init, cond, incr) = self.paired(
+            LeftParen,
+            "Expected `for` clauses group opening",
+            "Expected `for` clauses group to be closed",
+            |this| {
+                let init = match this.current_token.kind {
+                    Semicolon => {
+                        this.advance();
+                        None
+                    }
+                    Var => Some(this.parse_var_decl()?),
+                    _ => Some(this.parse_expr_stmt()?),
+                };
+                let cond = match this.current_token.kind {
+                    // If there is none condition in the for clauses, the parser creates a synthetic `true`
+                    // literal expression. This must be placed here to capture the current span (†).
+                    Semicolon => Expr {
+                        kind: ExprKind::from(expr::Lit {
+                            value: LoxValue::Boolean(true),
+                        }),
+                        span: {
+                            let lo = this.current_token.span.lo; // <--- This span. (†)
+                            Span::new(lo, lo)
+                        },
+                    },
+                    _ => this.parse_expr()?,
+                };
+                this.consume(Semicolon, "Expected `;` after `for` condition")?;
+                let incr = match this.current_token.kind {
+                    RightParen => None,
+                    _ => Some(this.parse_expr()?),
+                };
+                Ok((init, cond, incr))
             },
-            _ => self.parse_expr()?,
-        };
-        self.consume(Semicolon, "Expect `;` after `for` condition.")?;
-        let incr = match self.current_token.kind {
-            RightParen => None,
-            _ => Some(self.parse_expr()?),
-        };
-        self.consume(RightParen, "Must close parentheses after `for` clauses.")?;
-        let mut original_body = self.parse_stmt()?;
+        )?;
+        let mut body = self.parse_stmt()?;
 
         // Desugar `for` increment:
         if let Some(incr) = incr {
-            original_body = Stmt {
-                span: original_body.span,
+            body = Stmt {
+                span: body.span,
                 kind: StmtKind::from(stmt::Block {
                     stmts: Vec::from([
-                        original_body,
+                        body,
                         Stmt {
                             span: incr.span,
                             kind: StmtKind::from(stmt::Expr { expr: incr }),
@@ -257,11 +278,11 @@ impl Parser<'_> {
         }
 
         // Create the while:
-        let mut body = Stmt {
-            span: for_token_span.to(original_body.span),
+        body = Stmt {
+            span: for_token_span.to(body.span),
             kind: StmtKind::from(stmt::While {
                 cond,
-                body: original_body.into(),
+                body: body.into(),
             }),
         };
 
@@ -280,11 +301,14 @@ impl Parser<'_> {
 
     fn parse_while_stmt(&mut self) -> PResult<Stmt> {
         use TokenKind::*;
-        let while_token_span = self.consume(While, "")?.span;
+        let while_token_span = self.consume(While, S_MUST)?.span;
 
-        self.consume(LeftParen, "Expect parenthesized expression after `while`.")?;
-        let cond = self.parse_expr()?;
-        self.consume(RightParen, "Must close parentheses after `if`.")?;
+        let cond = self.paired(
+            LeftParen,
+            "Expected `while` condition group opening",
+            "Expected `while` condition group to be closed",
+            |this| this.parse_expr(),
+        )?;
         let body = self.parse_stmt()?;
 
         Ok(Stmt {
@@ -297,7 +321,7 @@ impl Parser<'_> {
     }
 
     fn parse_print_stmt(&mut self) -> PResult<Stmt> {
-        let print_token_span = self.consume(TokenKind::Print, "")?.span;
+        let print_token_span = self.consume(TokenKind::Print, S_MUST)?.span;
         let expr = self.parse_expr()?;
         let semicolon_span = self
             .consume(TokenKind::Semicolon, "Expected `;` after value")?
@@ -309,15 +333,18 @@ impl Parser<'_> {
     }
 
     fn parse_block(&mut self) -> PResult<(Vec<Stmt>, Span)> {
-        let left_brace_span = self.consume(TokenKind::LeftBrace, "")?.span;
-        let mut stmts = Vec::new();
-        while !self.is(&TokenKind::RightBrace) && !self.is_at_end() {
-            stmts.push(self.parse_decl()?);
-        }
-        let right_brace_span = self
-            .consume(TokenKind::RightBrace, "Expected block to be closed")?
-            .span;
-        Ok((stmts, left_brace_span.to(right_brace_span)))
+        self.paired_spanned(
+            TokenKind::LeftBrace,
+            "Expected block to be opened",
+            "Expected block to be closed",
+            |this| {
+                let mut stmts = Vec::new();
+                while !this.is(&TokenKind::RightBrace) && !this.is_at_end() {
+                    stmts.push(this.parse_decl()?);
+                }
+                Ok(stmts)
+            },
+        )
     }
 
     fn parse_expr_stmt(&mut self) -> PResult<Stmt> {
@@ -373,7 +400,7 @@ impl Parser<'_> {
             }
 
             return Err(ParseError::Error {
-                message: "Invalid assignment target.".into(),
+                message: "Invalid assignment target".into(),
                 span: left.span,
             });
         }
@@ -466,14 +493,15 @@ impl Parser<'_> {
                 span: self.advance().span,
             }),
             LeftParen => {
-                let left_paren_span = self.advance().span;
-                let expr = self.parse_expr()?.into();
-                let right_paren_span = self
-                    .consume(RightParen, "Expected group to be closed")?
-                    .span;
+                let (expr, span) = self.paired_spanned(
+                    LeftParen,
+                    S_MUST,
+                    "Expected group to be closed",
+                    |this| this.parse_expr(),
+                )?;
                 Ok(Expr {
-                    kind: expr::Group { expr }.into(),
-                    span: left_paren_span.to(right_paren_span),
+                    kind: expr::Group { expr: expr.into() }.into(),
+                    span,
                 })
             }
             _ => Err(self.unexpected("Expected any expression", None)),
@@ -545,12 +573,56 @@ impl<'src> Parser<'src> {
         }
     }
 
+    /// Pair invariant.
+    fn paired<I, R>(
+        &mut self,
+        delim_start: TokenKind,
+        delim_start_expectation: impl Into<String>,
+        delim_end_expectation: impl Into<String>,
+        inner: I,
+    ) -> PResult<R>
+    where
+        I: FnOnce(&mut Self) -> PResult<R>,
+    {
+        self.paired_spanned(
+            delim_start,
+            delim_start_expectation,
+            delim_end_expectation,
+            inner,
+        )
+        .map(|(ret, _)| ret)
+    }
+
+    /// Pair invariant (2), also returning the full span.
+    fn paired_spanned<I, R>(
+        &mut self,
+        delim_start: TokenKind,
+        delim_start_expectation: impl Into<String>,
+        delim_end_expectation: impl Into<String>,
+        inner: I,
+    ) -> PResult<(R, Span)>
+    where
+        I: FnOnce(&mut Self) -> PResult<R>,
+    {
+        let start_span = self
+            .consume(delim_start.clone(), delim_start_expectation)?
+            .span;
+        let ret = inner(self)?;
+        let end_span = match self.consume(delim_start.get_pair(), delim_end_expectation) {
+            Ok(token) => token.span,
+            Err(error) => {
+                return Err(error);
+            }
+        };
+        Ok((ret, start_span.to(end_span)))
+    }
+
     /// Returns an `ParseError::UnexpectedToken`.
     #[inline(always)]
     fn unexpected(&self, message: impl Into<String>, expected: Option<TokenKind>) -> ParseError {
         let mut message = message.into();
-        if message.is_empty() {
-            message = "The current token is not expected. This is a parser bug.".into();
+        if message == S_MUST {
+            message = "Parser bug. Unexpected token".into()
         }
         ParseError::UnexpectedToken {
             message,
@@ -584,14 +656,16 @@ impl<'src> Parser<'src> {
 
         self.advance();
         use TokenKind::*;
-        while !{
+        while !self.is_at_end() {
             let curr = &self.current_token.kind;
             let prev = &self.prev_token.kind;
 
-            self.is_at_end()
-                || matches!(prev, Semicolon)
+            if matches!(prev, Semicolon)
                 || matches!(curr, Class | For | Fun | If | Print | Return | Var | While)
-        } {
+            {
+                break;
+            }
+
             self.advance();
         }
     }
@@ -602,6 +676,9 @@ impl<'src> Parser<'src> {
         self.current_token.kind == TokenKind::Eof
     }
 }
+
+/// (String Must) Indicates the parser to emit a parser error (i.e. the parser is bugged) message.
+const S_MUST: &str = "@@must";
 
 /// Parses a binary expression.
 macro_rules! bin_expr {

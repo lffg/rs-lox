@@ -67,3 +67,10 @@ impl Display for ParseError {
 }
 
 impl Error for ParseError {}
+
+impl ParseError {
+    /// Checks if the error allows REPL continuation (aka. "..." prompt).
+    pub fn allows_continuation(&self) -> bool {
+        matches!(self, ParseError::UnexpectedToken { offending, .. } if offending.kind == TokenKind::Eof)
+    }
+}

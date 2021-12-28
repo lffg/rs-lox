@@ -86,6 +86,17 @@ impl TokenKind {
             | GreaterEqual | Eof | Dummy | Error(_) => false,
         }
     }
+
+    pub fn get_pair(&self) -> TokenKind {
+        use TokenKind::*;
+        match self {
+            LeftParen => RightParen,
+            RightParen => LeftParen,
+            LeftBrace => RightBrace,
+            RightBrace => LeftBrace,
+            unexpected => panic!("Kind `{:?}` don't have a pair. This is a bug.", unexpected),
+        }
+    }
 }
 
 impl Display for Token {
