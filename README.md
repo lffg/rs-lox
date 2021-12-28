@@ -1,4 +1,4 @@
-# `rs-lox`
+# Crafting Interpreters in Rust – `rs-lox`
 
 My implementation of the first interpreter presented in "[Crafting Interpreters](https://craftinginterpreters.com/)", by Robert Nystrom.
 
@@ -11,15 +11,15 @@ The project structure's TL;DR:
 You may compile and run this project using `cargo`. Example:
 
 ```
-$ cargo run
-    Finished dev [unoptimized + debuginfo] target(s) in 0.00s
-     Running `target/debug/lox`
+$ cargo run --quiet
 Welcome to rs-lox. Enter Ctrl+D or `:exit` to exit.
 
->>> for (var i = 0; i < 3; i = i + 1) { print "result: " + show (1 + i * 3); }
-result: 1
-result: 4
-result: 7
+>>> for (var i = 1; i <= 3; i = i + 1) {
+...   print i;
+... }
+1
+2
+3
 ```
 
 ---
