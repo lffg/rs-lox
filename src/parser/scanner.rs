@@ -1,11 +1,13 @@
 use crate::{
-    parser::scanner::identifier::{
-        is_valid_identifier_start, is_valid_identifier_tail, LOX_KEYWORDS,
+    parser::scanner::{
+        error::ScanError,
+        identifier::{is_valid_identifier_start, is_valid_identifier_tail, LOX_KEYWORDS},
     },
     span::Span,
     token::{Token, TokenKind},
 };
 
+pub mod error;
 mod identifier;
 
 pub struct Scanner<'src> {
@@ -62,7 +64,7 @@ impl Scanner<'_> {
             c if c.is_ascii_digit() => self.number(),
             c if c.is_ascii_whitespace() => self.whitespace(),
             c if is_valid_identifier_start(c) => self.identifier_or_keyword(),
-            unexpected => Error(format!("Unexpected character `{}`", unexpected)),
+            unexpected => Error(ScanError::UnexpectedChar(unexpected)),
         }
     }
 
@@ -72,7 +74,7 @@ impl Scanner<'_> {
             self.advance();
         }
         if self.is_at_end() {
-            return TokenKind::Error("Unterminated string".into());
+            return TokenKind::Error(ScanError::UnterminatedString);
         }
         self.advance(); // The closing `"`
         TokenKind::String(self.lexme(1, -1).into())
@@ -103,7 +105,7 @@ impl Scanner<'_> {
         }
         match self.lexme(0, 0).parse() {
             Ok(parsed) => TokenKind::Number(parsed),
-            Err(_) => TokenKind::Error("Unparseable number literal".into()),
+            Err(_) => TokenKind::Error(ScanError::InvalidNumberLiteral),
         }
     }
 

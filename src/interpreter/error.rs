@@ -5,7 +5,7 @@ use std::{
 
 use crate::span::Span;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum RuntimeError {
     UnsupportedType {
         message: String,
@@ -24,8 +24,6 @@ pub enum RuntimeError {
 impl Display for RuntimeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use RuntimeError::*;
-        // Note that a new line should NOT be included at the end. As such, while `writeln!` may be
-        // called, the last call must always be an `write!`.
         match self {
             UnsupportedType {
                 message,

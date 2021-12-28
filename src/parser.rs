@@ -81,12 +81,8 @@ impl Parser<'_> {
 
         let allow_continuation = self.options.repl_mode
             && self.current_token.kind == TokenKind::Eof
-            && self.diagnostics.len() == 1
-            && self
-                .diagnostics
-                .last()
-                .map(|error| error.allows_continuation())
-                .unwrap_or(false);
+            && self.diagnostics.len() <= 2
+            && self.diagnostics.iter().all(ParseError::allows_continuation);
 
         (stmts, self.diagnostics, allow_continuation)
     }
@@ -529,10 +525,10 @@ impl<'src> Parser<'src> {
         let next = loop {
             let maybe_next = self.scanner.next().expect("Cannot advance past Eof.");
             // Report and ignore tokens with the `Error` kind:
-            if let TokenKind::Error(message) = maybe_next.kind {
-                self.diagnostics.push(ParseError::ScannerError {
+            if let TokenKind::Error(error) = maybe_next.kind {
+                self.diagnostics.push(ParseError::ScanError {
+                    error,
                     span: maybe_next.span,
-                    message,
                 });
                 continue;
             }

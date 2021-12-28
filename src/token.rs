@@ -1,8 +1,8 @@
 use std::fmt::{self, Display};
 
-use crate::span::Span;
+use crate::{parser::scanner::error::ScanError, span::Span};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Token {
     pub kind: TokenKind,
     pub span: Span,
@@ -69,7 +69,7 @@ pub enum TokenKind {
     Eof,
 
     Dummy,
-    Error(String),
+    Error(ScanError),
 }
 
 impl TokenKind {

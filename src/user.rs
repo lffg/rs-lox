@@ -77,13 +77,20 @@ impl Repl {
                 None => self.current_src = Some(line),
             }
 
-            let mut parser = Parser::new(self.current_src.as_ref().unwrap());
+            let src = self.current_src.as_ref().unwrap();
+
+            if self.show_lex && !src.trim().is_empty() {
+                ast::dbg::print_scanned_tokens(src);
+            }
+
+            let mut parser = Parser::new(src);
             parser.options.repl_mode = true;
             let (stmts, errors, allow_continuation) = parser.parse();
 
             if self.show_ast && !stmts.is_empty() {
                 ast::dbg::print_program_tree(&stmts);
             }
+
             if !errors.is_empty() {
                 if !allow_continuation || is_eof {
                     maybe_print_parse_errors(&errors);
@@ -91,6 +98,7 @@ impl Repl {
                 }
                 continue;
             }
+
             self.interpret(&stmts)
         }
         Ok(())
