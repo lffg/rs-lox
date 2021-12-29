@@ -110,10 +110,7 @@ impl Parser<'_> {
 
     fn parse_decl(&mut self) -> PResult<Stmt> {
         match self.current_token.kind {
-            TokenKind::Var => {
-                self.advance();
-                self.parse_var_decl()
-            }
+            TokenKind::Var => self.parse_var_decl(),
             _ => self.parse_stmt(),
         }
     }
