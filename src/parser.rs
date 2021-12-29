@@ -17,7 +17,7 @@ pub mod scanner;
 
 type PResult<T> = Result<T, ParseError>;
 
-pub type ParserOutcome = (Vec<Stmt>, Vec<ParseError>, bool);
+pub type ParserOutcome = (Vec<Stmt>, Vec<ParseError>);
 
 pub struct Parser<'src> {
     scanner: Peekable<Scanner<'src>>,
@@ -77,29 +77,13 @@ pub struct Parser<'src> {
 // Each production has a correspondent method in the following implementation.
 impl Parser<'_> {
     pub fn parse(mut self) -> ParserOutcome {
-        let stmts = self.parse_program();
-
-        let allow_continuation = self.options.repl_mode
-            && self.current_token.kind == TokenKind::Eof
-            && self.diagnostics.len() <= 2
-            && self.diagnostics.iter().all(ParseError::allows_continuation);
-
-        (stmts, self.diagnostics, allow_continuation)
+        (self.parse_program(), self.diagnostics)
     }
 
     fn parse_program(&mut self) -> Vec<Stmt> {
         let mut stmts = Vec::new();
         while !self.is_at_end() {
-            // TODO: Maybe synchronize at `parse_decl`.
-            stmts.push(self.parse_decl().unwrap_or_else(|error| {
-                self.diagnostics.push(error);
-                self.synchronize();
-                let hi = self.current_token.span.hi;
-                Stmt {
-                    kind: stmt::Dummy().into(),
-                    span: Span::new(hi, hi),
-                }
-            }));
+            stmts.push(self.parse_decl());
         }
         stmts
     }
@@ -108,10 +92,24 @@ impl Parser<'_> {
     // Declarations
     //
 
-    fn parse_decl(&mut self) -> PResult<Stmt> {
-        match self.current_token.kind {
-            TokenKind::Var => self.parse_var_decl(),
+    fn parse_decl(&mut self) -> Stmt {
+        use TokenKind::*;
+        let result = match self.current_token.kind {
+            Var => self.parse_var_decl(),
             _ => self.parse_stmt(),
+        };
+
+        match result {
+            Ok(stmt) => stmt,
+            Err(error) => {
+                self.diagnostics.push(error);
+                self.synchronize();
+                let lo = self.current_token.span.lo;
+                Stmt {
+                    kind: stmt::Dummy().into(),
+                    span: Span::new(lo, lo),
+                }
+            }
         }
     }
 
@@ -333,7 +331,7 @@ impl Parser<'_> {
             |this| {
                 let mut stmts = Vec::new();
                 while !this.is(&TokenKind::RightBrace) && !this.is_at_end() {
-                    stmts.push(this.parse_decl()?);
+                    stmts.push(this.parse_decl());
                 }
                 Ok(stmts)
             },
@@ -355,6 +353,7 @@ impl Parser<'_> {
         let semicolon_span = self
             .consume(TokenKind::Semicolon, "Expected `;` after expression")?
             .span;
+
         Ok(Stmt {
             span: expr.span.to(semicolon_span),
             kind: stmt::Expr { expr }.into(),
@@ -642,24 +641,18 @@ impl<'src> Parser<'src> {
     ///
     /// Before synchronize one must not forget to emit the raised parse error.
     fn synchronize(&mut self) {
-        // If the end is already reached any further advancements are needless.
-        if self.is_at_end() {
-            return;
-        }
-
-        self.advance();
         use TokenKind::*;
         while !self.is_at_end() {
-            let curr = &self.current_token.kind;
-            let prev = &self.prev_token.kind;
-
-            if matches!(prev, Semicolon)
-                || matches!(curr, Class | For | Fun | If | Print | Return | Var | While)
-            {
-                break;
-            }
-
-            self.advance();
+            match &self.current_token.kind {
+                Semicolon => {
+                    self.advance();
+                    return;
+                }
+                Class | For | Fun | If | Print | Return | Var | While => {
+                    return;
+                }
+                _ => self.advance(),
+            };
         }
     }
 

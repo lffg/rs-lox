@@ -20,7 +20,7 @@ fn maybe_print_parse_errors(errors: &[ParseError]) {
 
 pub fn run_file(file: impl AsRef<Path>) -> io::Result<()> {
     let src = fs::read_to_string(file)?;
-    let (stmts, errors, _) = Parser::new(&src).parse();
+    let (stmts, errors) = Parser::new(&src).parse();
     maybe_print_parse_errors(&errors);
     if errors.is_empty() {
         if let Err(error) = Interpreter::new().interpret(&stmts) {
@@ -35,8 +35,8 @@ pub fn run_repl() -> io::Result<()> {
 }
 
 struct Repl {
-    current_src: Option<String>,
     interpreter: Interpreter,
+    current_src: String,
     show_lex: bool,
     show_ast: bool,
     done: bool,
@@ -50,7 +50,7 @@ impl Repl {
     fn new() -> Self {
         Self {
             interpreter: Interpreter::new(),
-            current_src: None,
+            current_src: "".into(),
             show_lex: false,
             show_ast: false,
             done: false,
@@ -63,43 +63,44 @@ impl Repl {
         while !self.done {
             let (line, is_eof) = self.read_line()?;
 
-            if is_eof {
-                eprintln!();
-            }
-
+            // If previous line started with `:`, interpret it as a command and
+            // skip this iteration entirely, handling the command.
             if let Some(raw_cmd) = line.trim().strip_prefix(':') {
                 self.handle_command(raw_cmd);
                 continue;
             }
 
-            match self.current_src.as_mut() {
-                Some(string) => string.push_str(&line),
-                None => self.current_src = Some(line),
-            }
+            // Accumulate the input.
+            self.current_src += &line;
 
-            let src = self.current_src.as_ref().unwrap();
-
-            if self.show_lex && !src.trim().is_empty() {
-                ast::dbg::print_scanned_tokens(src);
-            }
-
-            let mut parser = Parser::new(src);
+            let mut parser = Parser::new(&self.current_src);
             parser.options.repl_mode = true;
-            let (stmts, errors, allow_continuation) = parser.parse();
+            let (stmts, errors) = parser.parse();
 
+            // If the parser produced an error, but the error allows REPL continuation then we
+            // just continue to ask for successive user inputs.
+            if !errors.is_empty() && Self::should_continue_repl(&errors) && !is_eof {
+                continue;
+            }
+
+            // If the user asks so, show them some debug information before any code is interpreted
+            // or errors are emitted.
+            if self.show_lex && !self.current_src.trim().is_empty() {
+                ast::dbg::print_scanned_tokens(&self.current_src);
+            }
             if self.show_ast && !stmts.is_empty() {
                 ast::dbg::print_program_tree(&stmts);
             }
 
-            if !errors.is_empty() {
-                if !allow_continuation || is_eof {
-                    maybe_print_parse_errors(&errors);
-                    self.current_src = None;
-                }
-                continue;
+            if errors.is_empty() {
+                self.interpret(&stmts);
+            } else {
+                maybe_print_parse_errors(&errors);
             }
 
-            self.interpret(&stmts)
+            // After code is interpreted or errors are emitted to the user the current source
+            // accumulator must be cleaned, i.e. restore the original prompt (">>>").
+            self.current_src = "".into();
         }
         Ok(())
     }
@@ -108,11 +109,11 @@ impl Repl {
         if let Err(error) = self.interpreter.interpret(stmts) {
             eprintln!("{}", error);
         }
-        self.current_src = None;
+        self.current_src = "".into();
     }
 
     fn read_line(&mut self) -> io::Result<(String, bool)> {
-        let prompt = if self.current_src.is_none() {
+        let prompt = if self.current_src.is_empty() {
             ">>>"
         } else {
             "..."
@@ -122,8 +123,17 @@ impl Repl {
 
         let mut line = String::new();
         let is_eof = io::stdin().read_line(&mut line)? == 0;
-        self.done = is_eof && self.current_src.is_none();
+        self.done = is_eof && self.current_src.is_empty();
+
+        if is_eof {
+            println!();
+        }
+
         Ok((line, is_eof))
+    }
+
+    fn should_continue_repl(errors: &[ParseError]) -> bool {
+        !errors.is_empty() && errors.iter().all(ParseError::allows_continuation)
     }
 
     fn handle_command(&mut self, raw_cmd: &str) {
