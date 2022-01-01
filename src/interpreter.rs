@@ -103,7 +103,13 @@ impl Interpreter {
         use ExprKind::*;
         match &expr.kind {
             Lit(lit) => self.eval_lit_expr(lit),
-            Var(var) => self.env.read(&var.name),
+            Var(var) => self
+                .env
+                .read(&var.name)
+                .ok_or_else(|| RuntimeError::UndefinedVariable {
+                    name: var.name.clone(),
+                    span: expr.span,
+                }),
             Group(group) => self.eval_group_expr(group),
             Unary(unary) => self.eval_unary_expr(unary),
             Binary(binary) => self.eval_binary_expr(binary),
@@ -130,7 +136,7 @@ impl Interpreter {
                         "Bad type for unary `-` operator: `{}`",
                         unexpected.type_name()
                     ),
-                    operation_span: unary.operator.span,
+                    span: unary.operator.span,
                 }),
             },
             TokenKind::Bang => Ok(LoxValue::Boolean(!lox_is_truthy(&operand))),
@@ -155,7 +161,7 @@ impl Interpreter {
                         left.type_name(),
                         right.type_name()
                     ),
-                    operation_span: binary.operator.span,
+                    span: binary.operator.span,
                 }),
             },
 
@@ -165,7 +171,7 @@ impl Interpreter {
                 if let Number(right_num) = right {
                     if right_num == 0.0 {
                         return Err(RuntimeError::ZeroDivision {
-                            operation_span: binary.operator.span,
+                            span: binary.operator.span,
                         });
                     }
                 }
@@ -195,7 +201,12 @@ impl Interpreter {
 
     fn eval_assignment_expr(&mut self, assignment: &expr::Assignment) -> IResult<LoxValue> {
         let value = self.eval_expr(&assignment.value)?;
-        self.env.assign(&assignment.name, value)
+        self.env
+            .assign(&assignment.name, value)
+            .ok_or_else(|| RuntimeError::UndefinedVariable {
+                name: assignment.name.clone(),
+                span: assignment.name_span,
+            })
     }
 }
 
@@ -246,7 +257,7 @@ macro_rules! bin_number_operator {
                     left.type_name(),
                     right.type_name()
                 ),
-                operation_span: $op_token.span
+                span: $op_token.span
             }),
         }
     };
@@ -266,7 +277,7 @@ macro_rules! bin_comparison_operator {
                     left.type_name(),
                     right.type_name()
                 ),
-                operation_span: $op_token.span,
+                span: $op_token.span,
             }),
         }
     };

@@ -1,40 +1,13 @@
-use std::{
-    fs,
-    io::{self, Write},
-    path::Path,
-};
+use std::io::{self, Write};
 
 use crate::{
-    ast::{self, stmt::Stmt},
+    ast,
     interpreter::Interpreter,
     parser::{error::ParseError, Parser},
+    user::handle_parser_outcome,
 };
 
-fn maybe_print_parse_errors(errors: &[ParseError]) {
-    if !errors.is_empty() {
-        for error in errors {
-            eprintln!("{}", error);
-        }
-    }
-}
-
-pub fn run_file(file: impl AsRef<Path>) -> io::Result<()> {
-    let src = fs::read_to_string(file)?;
-    let (stmts, errors) = Parser::new(&src).parse();
-    maybe_print_parse_errors(&errors);
-    if errors.is_empty() {
-        if let Err(error) = Interpreter::new().interpret(&stmts) {
-            eprintln!("{}", error);
-        }
-    }
-    Ok(())
-}
-
-pub fn run_repl() -> io::Result<()> {
-    Repl::run()
-}
-
-struct Repl {
+pub struct Repl {
     interpreter: Interpreter,
     current_src: String,
     show_lex: bool,
@@ -43,7 +16,7 @@ struct Repl {
 }
 
 impl Repl {
-    fn run() -> io::Result<()> {
+    pub fn run() -> io::Result<()> {
         Self::new().start()
     }
 
@@ -75,11 +48,11 @@ impl Repl {
 
             let mut parser = Parser::new(&self.current_src);
             parser.options.repl_mode = true;
-            let (stmts, errors) = parser.parse();
+            let outcome @ (stmts, errors) = &parser.parse();
 
             // If the parser produced an error, but the error allows REPL continuation then we
             // just continue to ask for successive user inputs.
-            if !errors.is_empty() && Self::should_continue_repl(&errors) && !is_eof {
+            if !errors.is_empty() && Self::should_continue_repl(errors) && !is_eof {
                 continue;
             }
 
@@ -89,27 +62,13 @@ impl Repl {
                 ast::dbg::print_scanned_tokens(&self.current_src);
             }
             if self.show_ast && !stmts.is_empty() {
-                ast::dbg::print_program_tree(&stmts);
+                ast::dbg::print_program_tree(stmts);
             }
 
-            if errors.is_empty() {
-                self.interpret(&stmts);
-            } else {
-                maybe_print_parse_errors(&errors);
-            }
-
-            // After code is interpreted or errors are emitted to the user the current source
-            // accumulator must be cleaned, i.e. restore the original prompt (">>>").
+            handle_parser_outcome(&self.current_src, outcome, &mut self.interpreter);
             self.current_src = "".into();
         }
         Ok(())
-    }
-
-    fn interpret(&mut self, stmts: &[Stmt]) {
-        if let Err(error) = self.interpreter.interpret(stmts) {
-            eprintln!("{}", error);
-        }
-        self.current_src = "".into();
     }
 
     fn read_line(&mut self) -> io::Result<(String, bool)> {

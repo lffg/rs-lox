@@ -1,6 +1,7 @@
 use std::{
     cmp::{max, min},
     fmt::{self, Display},
+    ops::Range,
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]
@@ -27,6 +28,11 @@ impl Span {
         Span::new(min(self.lo, other.lo), max(self.hi, other.hi))
     }
 
+    /// Checks if the span contains the given position.
+    pub fn contains_p(&self, position: usize) -> bool {
+        self.lo <= position && position < self.hi
+    }
+
     /// Modifies the given span. Panics if new bounds are invalid.
     pub fn updated(&self, lo: isize, hi: isize) -> Span {
         let lo = self.lo as isize + lo;
@@ -34,6 +40,14 @@ impl Span {
         assert!(lo >= 0, "New lower bound can't be negative.");
         assert!(lo <= hi, "Lower bound can not pass the higher.");
         Span::new(lo as _, hi as _)
+    }
+
+    /// Returns the span range.
+    pub fn range(&self) -> Range<usize> {
+        Range {
+            start: self.lo,
+            end: self.hi,
+        }
     }
 }
 

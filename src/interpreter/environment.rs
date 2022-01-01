@@ -4,8 +4,6 @@ use std::collections::HashMap;
 
 use crate::value::LoxValue;
 
-use super::{IResult, RuntimeError};
-
 #[derive(Debug)]
 pub struct Environment {
     // This implementation is currently suboptimal due to `LoxValue` cloning and the use of owned
@@ -43,24 +41,24 @@ impl Environment {
         self.scopes.last_mut().unwrap().insert(name, value);
     }
 
-    /// Assigns a variable.
-    pub fn assign(&mut self, name: &str, value: LoxValue) -> IResult<LoxValue> {
+    /// Assigns a variable. Returns `None` in case of undefined variable error.
+    pub fn assign(&mut self, name: &str, value: LoxValue) -> Option<LoxValue> {
         for scope in self.scopes.iter_mut().rev() {
             if let Some(value_ref) = scope.get_mut(name) {
                 *value_ref = value.clone();
-                return Ok(value);
+                return Some(value);
             }
         }
-        Err(RuntimeError::UndefinedVariable { name: name.into() })
+        None
     }
 
-    /// Reads a variable.
-    pub fn read(&self, name: &str) -> IResult<LoxValue> {
+    /// Reads a variable. Returns `None` in case of undefined variable error.
+    pub fn read(&self, name: &str) -> Option<LoxValue> {
         for scope in self.scopes.iter().rev() {
             if let Some(value) = scope.get(name) {
-                return Ok(value.clone());
+                return Some(value.clone());
             }
         }
-        Err(RuntimeError::UndefinedVariable { name: name.into() })
+        None
     }
 }

@@ -33,31 +33,24 @@ impl Display for ParseError {
         use ParseError::*;
         match self {
             Error { message, span } => {
-                writeln!(f, "{}", message)?;
-                write!(f, "    At position {}", span)?;
-                Ok(())
+                write!(f, "{}; at position {}", message, span)
             }
 
             ScanError { error, span } => {
-                writeln!(f, "{}", error)?;
-                write!(f, "    At position {}", span)?;
-                Ok(())
+                write!(f, "{}; at position {}", error, span)
             }
 
             UnexpectedToken {
-                message,
-                offending,
-                expected,
+                message, offending, ..
             } => {
-                writeln!(f, "{}", message)?;
                 write!(
                     f,
-                    "    Unexpected token `{}` at position {}",
-                    offending, offending.span
+                    "{}; unexpected token `{}`; at position {}",
+                    message, offending, offending.span
                 )?;
-                if let Some(expected) = expected {
-                    write!(f, "\n    Expected token `{}`", expected)?;
-                }
+                // if let Some(expected) = expected {
+                //     write!(f, "\nInstead expected token of kind `{}`", expected)?;
+                // }
                 Ok(())
             }
         }
@@ -67,6 +60,15 @@ impl Display for ParseError {
 impl Error for ParseError {}
 
 impl ParseError {
+    /// Returns the span that caused the error.
+    pub fn primary_span(&self) -> Span {
+        use ParseError::*;
+        match self {
+            Error { span, .. } | ScanError { span, .. } => *span,
+            UnexpectedToken { offending, .. } => offending.span,
+        }
+    }
+
     /// Checks if the error allows REPL continuation (aka. "..." prompt).
     pub fn allows_continuation(&self) -> bool {
         use ParseError::*;

@@ -7,42 +7,40 @@ use crate::span::Span;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum RuntimeError {
-    UnsupportedType {
-        message: String,
-        operation_span: Span,
-    },
+    UnsupportedType { message: String, span: Span },
 
-    UndefinedVariable {
-        name: String,
-    },
+    UndefinedVariable { name: String, span: Span },
 
-    ZeroDivision {
-        operation_span: Span,
-    },
+    ZeroDivision { span: Span },
 }
 
 impl Display for RuntimeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use RuntimeError::*;
         match self {
-            UnsupportedType {
-                message,
-                operation_span,
-            } => {
-                writeln!(f, "{}", message)?;
-                write!(f, "    At position {}", operation_span)?;
-                Ok(())
+            UnsupportedType { message, span } => {
+                write!(f, "{}; at position {}", message, span)
             }
 
-            UndefinedVariable { name } => {
-                write!(f, "Undefined variable `{}`", name)
+            UndefinedVariable { name, span } => {
+                write!(f, "Undefined variable `{}`; at position {}", name, span)
             }
 
-            ZeroDivision { operation_span } => {
-                writeln!(f, "Can not divide by zero")?;
-                write!(f, "    At position {}", operation_span)?;
-                Ok(())
+            ZeroDivision { span } => {
+                write!(f, "Can not divide by zero; at position {}", span)
             }
+        }
+    }
+}
+
+impl RuntimeError {
+    /// Returns the span that caused the error.
+    pub fn primary_span(&self) -> Span {
+        use RuntimeError::*;
+        match self {
+            UnsupportedType { span, .. }
+            | UndefinedVariable { span, .. }
+            | ZeroDivision { span } => *span,
         }
     }
 }

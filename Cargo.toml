@@ -4,5 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+ansi_term = "0.12.1"
 anyhow = "1"
 lazy_static = "1"
