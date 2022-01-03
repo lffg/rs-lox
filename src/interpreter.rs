@@ -1,17 +1,20 @@
+use std::{mem, rc::Rc};
+
 use crate::{
     ast::{
         expr::{self, Expr, ExprKind},
         stmt::{self, Stmt, StmtKind},
     },
     interpreter::{environment::Environment, error::RuntimeError},
+    span::Span,
     token::TokenKind,
-    value::LoxValue,
+    value::{LoxValue, NativeFunction},
 };
 
-mod environment;
+pub mod environment;
 pub mod error;
 
-type IResult<T> = Result<T, RuntimeError>;
+pub type IResult<T> = Result<T, RuntimeError>;
 
 #[derive(Debug)]
 pub struct Interpreter {
@@ -87,11 +90,11 @@ impl Interpreter {
         Ok(())
     }
 
-    // What Rust allows me:
     fn eval_block_stmt(&mut self, block: &stmt::Block) -> IResult<()> {
-        self.env.add_scope();
+        let new = Environment::new_enclosed(&self.env);
+        let old = mem::replace(&mut self.env, new);
         let res = self.eval_stmts(&block.stmts);
-        self.env.pop_scope();
+        self.env = old;
         res
     }
 
@@ -111,6 +114,7 @@ impl Interpreter {
                     span: expr.span,
                 }),
             Group(group) => self.eval_group_expr(group),
+            Call(call) => self.eval_call_expr(call, expr.span),
             Unary(unary) => self.eval_unary_expr(unary),
             Binary(binary) => self.eval_binary_expr(binary),
             Logical(logical) => self.eval_logical_expr(logical),
@@ -124,6 +128,35 @@ impl Interpreter {
 
     fn eval_group_expr(&mut self, group: &expr::Group) -> IResult<LoxValue> {
         self.eval_expr(&group.expr)
+    }
+
+    fn eval_call_expr(&mut self, call: &expr::Call, span: Span) -> IResult<LoxValue> {
+        use LoxValue::*;
+        let callee = self.eval_expr(&call.callee)?;
+        let args = call
+            .args
+            .iter()
+            .map(|expr| self.eval_expr(expr))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        match callee {
+            Function(callable) if callable.arity() == args.len() => callable.call(self, &args),
+            Function(callable) => Err(RuntimeError::UnsupportedType {
+                message: format!(
+                    "Expected {} arguments, but got {}",
+                    callable.arity(),
+                    args.len()
+                ),
+                span,
+            }),
+            _ => Err(RuntimeError::UnsupportedType {
+                message: format!(
+                    "Type `{}` is not callable, can only call functions and classes",
+                    callee.type_name()
+                ),
+                span,
+            }),
+        }
     }
 
     fn eval_unary_expr(&mut self, unary: &expr::Unary) -> IResult<LoxValue> {
@@ -212,7 +245,19 @@ impl Interpreter {
 
 impl Default for Interpreter {
     fn default() -> Self {
-        let env = Environment::new();
+        let mut globals = Environment::new();
+
+        def_native!(
+            globals.clock / 0,
+            fn clock(_: &[LoxValue]) -> IResult<LoxValue> {
+                use std::time::{SystemTime, UNIX_EPOCH};
+                let start = SystemTime::now();
+                let since_the_epoch = start.duration_since(UNIX_EPOCH).unwrap().as_secs_f64();
+                Ok(LoxValue::Number(since_the_epoch))
+            }
+        );
+
+        let env = Environment::new_enclosed(&globals);
         Self { env }
     }
 }
@@ -228,7 +273,7 @@ fn lox_is_truthy(value: &LoxValue) -> bool {
     use LoxValue::*;
     match value {
         Boolean(inner) => *inner,
-        Number(_) | String(_) => true,
+        Function(_) | Number(_) | String(_) => true,
         Nil => false,
     }
 }
@@ -283,3 +328,14 @@ macro_rules! bin_comparison_operator {
     };
 }
 use bin_comparison_operator;
+
+macro_rules! def_native {
+    ($globals:ident . $name:ident / $arity:expr  , $fn:item) => {
+        $fn
+        $globals.define(
+            stringify!($name).into(),
+            LoxValue::Function(Rc::new(NativeFunction { ptr: $name, arity: $arity })),
+        );
+    };
+}
+use def_native;

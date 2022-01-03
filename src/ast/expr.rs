@@ -12,7 +12,7 @@ pub struct Expr {
 
 make_ast_enum!(
     ExprKind,
-    [Lit, Var, Group, Unary, Binary, Logical, Assignment]
+    [Lit, Var, Group, Call, Unary, Binary, Logical, Assignment]
 );
 
 #[derive(Debug)]
@@ -28,6 +28,12 @@ pub struct Var {
 #[derive(Debug)]
 pub struct Group {
     pub expr: Box<Expr>,
+}
+
+#[derive(Debug)]
+pub struct Call {
+    pub callee: Box<Expr>,
+    pub args: Vec<Expr>,
 }
 
 #[derive(Debug)]

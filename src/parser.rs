@@ -49,7 +49,7 @@ pub struct Parser<'src> {
 //
 // if_stmt     ::= "if" "(" expr ")" statement ( "else" statement )? ;
 // for_stmt    ::= "for" for_clauses statement ;
-// for_clauses ::= "(" ( var_decl | expr_stmt | ";" ) expr? ";" expr? ")"
+// for_clauses ::= "(" ( var_decl | expr_stmt | ";" ) expr? ";" expr? ")" ;
 // while_stmt  ::= "while" "(" expr ")" statement ;
 // print_stmt  ::= "print" expr ";" ;
 // block_stmt  ::= "{" declaration* "}" ;
@@ -65,7 +65,9 @@ pub struct Parser<'src> {
 // term        ::= factor ( ( "+" | "-" ) factor )* ;
 // factor      ::= unary ( ( "*" | "/" ) unary )* ;
 // unary       ::= ( "show" | "typeof" | "!" | "-" ) unary
-//               | primary ;
+//               | call ;
+// call        ::= primary ( "(" arguments? ")" )* ;
+// arguments   ::= expr ( "," expr )* ;
 // primary     ::= IDENTIFIER
 //               | NUMBER | STRING
 //               | "true" | "false"
@@ -467,7 +469,53 @@ impl Parser<'_> {
                 }),
             });
         }
-        self.parse_primary()
+        self.parse_call()
+    }
+
+    fn parse_call(&mut self) -> PResult<Expr> {
+        use TokenKind::*;
+        let mut expr = self.parse_primary()?;
+
+        loop {
+            if !self.is(&LeftParen) {
+                break;
+            }
+
+            let (args, call_span) = self.paired_spanned(
+                LeftParen,
+                S_MUST,
+                "Expected `)` to close call syntax",
+                |this| {
+                    let mut args = Vec::new();
+                    if !this.is(&RightParen) {
+                        loop {
+                            args.push(this.parse_expr()?);
+                            if !this.take(Comma) {
+                                break;
+                            }
+                        }
+                    }
+                    Ok(args)
+                },
+            )?;
+
+            if args.len() >= 255 {
+                self.diagnostics.push(ParseError::Error {
+                    message: "Call can't have more than 255 arguments".into(),
+                    span: call_span,
+                })
+            }
+
+            expr = Expr {
+                span: expr.span.to(call_span),
+                kind: ExprKind::from(expr::Call {
+                    callee: expr.into(),
+                    args,
+                }),
+            }
+        }
+
+        Ok(expr)
     }
 
     fn parse_primary(&mut self) -> PResult<Expr> {

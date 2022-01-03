@@ -106,6 +106,21 @@ impl TreePrinter {
                     s.print_expr(&group.expr);
                 });
             }
+            Call(call) => {
+                self.emit("Call");
+                self.nest(|s| {
+                    s.emit("Callee");
+                    s.nest(|s| s.print_expr(&call.callee));
+                    if !call.args.is_empty() {
+                        s.emit("Args");
+                        s.nest(|s| {
+                            for arg in &call.args {
+                                s.print_expr(arg);
+                            }
+                        });
+                    }
+                })
+            }
             Unary(unary) => {
                 self.emit(format!("Unary {}", unary.operator));
                 self.nest(|s| {
