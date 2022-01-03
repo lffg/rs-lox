@@ -125,8 +125,6 @@ impl Parser<'_> {
         }
     }
 
-    // fn     ::= IDENTIFIER "(" params? ")" ;
-    // params ::= IDENTIFIER ( "," IDENTIFIER )* ;
     fn parse_helper_fn(&mut self, kind: &'static str, init_span: Span) -> PResult<Stmt> {
         use TokenKind::*;
 
