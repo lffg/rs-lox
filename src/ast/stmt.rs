@@ -1,4 +1,4 @@
-use crate::{ast::expr, span::Span};
+use crate::{ast::expr, data::LoxIdent, span::Span};
 
 #[derive(Debug, Clone)]
 pub struct Stmt {
@@ -10,16 +10,14 @@ make_ast_enum!(StmtKind, [Var, Fun, If, While, Print, Block, Expr, Dummy]);
 
 #[derive(Debug, Clone)]
 pub struct Var {
-    pub name: String,
-    pub name_span: Span,
+    pub name: LoxIdent,
     pub init: Option<expr::Expr>,
 }
 
 #[derive(Debug, Clone)]
 pub struct Fun {
-    pub name: String,
-    pub name_span: Span,
-    pub params: Vec<(String, Span)>,
+    pub name: LoxIdent,
+    pub params: Vec<LoxIdent>,
     pub body: Vec<Stmt>,
 }
 

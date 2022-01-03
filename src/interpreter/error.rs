@@ -3,13 +3,13 @@ use std::{
     fmt::{self, Display},
 };
 
-use crate::span::Span;
+use crate::{data::LoxIdent, span::Span};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum RuntimeError {
     UnsupportedType { message: String, span: Span },
 
-    UndefinedVariable { name: String, span: Span },
+    UndefinedVariable { ident: LoxIdent },
 
     ZeroDivision { span: Span },
 }
@@ -22,8 +22,12 @@ impl Display for RuntimeError {
                 write!(f, "{}; at position {}", message, span)
             }
 
-            UndefinedVariable { name, span } => {
-                write!(f, "Undefined variable `{}`; at position {}", name, span)
+            UndefinedVariable { ident } => {
+                write!(
+                    f,
+                    "Undefined variable `{}`; at position {}",
+                    ident.name, ident.span
+                )
             }
 
             ZeroDivision { span } => {
@@ -38,9 +42,8 @@ impl RuntimeError {
     pub fn primary_span(&self) -> Span {
         use RuntimeError::*;
         match self {
-            UnsupportedType { span, .. }
-            | UndefinedVariable { span, .. }
-            | ZeroDivision { span } => *span,
+            UnsupportedType { span, .. } | ZeroDivision { span } => *span,
+            UndefinedVariable { ident } => ident.span,
         }
     }
 }

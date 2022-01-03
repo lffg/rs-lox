@@ -5,7 +5,7 @@ use crate::{
         expr::{self, Expr, ExprKind},
         stmt::{self, Stmt, StmtKind},
     },
-    data::{LoxFunction, LoxValue, NativeFunction},
+    data::{LoxFunction, LoxIdent, LoxValue, NativeFunction},
     interpreter::{environment::Environment, error::RuntimeError},
     span::Span,
     token::TokenKind,
@@ -116,13 +116,7 @@ impl Interpreter {
         use ExprKind::*;
         match &expr.kind {
             Lit(lit) => self.eval_lit_expr(lit),
-            Var(var) => self
-                .env
-                .read(&var.name)
-                .ok_or_else(|| RuntimeError::UndefinedVariable {
-                    name: var.name.clone(),
-                    span: expr.span,
-                }),
+            Var(var) => self.env.read(&var.name),
             Group(group) => self.eval_group_expr(group),
             Call(call) => self.eval_call_expr(call, expr.span),
             Unary(unary) => self.eval_unary_expr(unary),
@@ -244,12 +238,7 @@ impl Interpreter {
 
     fn eval_assignment_expr(&mut self, assignment: &expr::Assignment) -> IResult<LoxValue> {
         let value = self.eval_expr(&assignment.value)?;
-        self.env
-            .assign(&assignment.name, value)
-            .ok_or_else(|| RuntimeError::UndefinedVariable {
-                name: assignment.name.clone(),
-                span: assignment.name_span,
-            })
+        self.env.assign(&assignment.name, value)
     }
 }
 
@@ -343,7 +332,7 @@ macro_rules! def_native {
     ($globals:ident . $name:ident / $arity:expr  , $fn:item) => {
         $fn
         $globals.define(
-            stringify!($name).into(),
+            LoxIdent { name: stringify!($name).into(), span: Span::new(0, 0) },
             LoxValue::Function(Rc::new(NativeFunction { fn_ptr: $name, arity: $arity })),
         );
     };

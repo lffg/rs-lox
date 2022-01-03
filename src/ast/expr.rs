@@ -1,5 +1,5 @@
 use crate::{
-    data::LoxValue,
+    data::{LoxIdent, LoxValue},
     span::Span,
     token::{Token, TokenKind},
 };
@@ -22,7 +22,7 @@ pub struct Lit {
 
 #[derive(Debug, Clone)]
 pub struct Var {
-    pub name: String,
+    pub name: LoxIdent,
 }
 
 #[derive(Debug, Clone)]
@@ -58,8 +58,7 @@ pub struct Logical {
 
 #[derive(Debug, Clone)]
 pub struct Assignment {
-    pub name: String,
-    pub name_span: Span,
+    pub name: LoxIdent,
     pub value: Box<Expr>,
 }
 

@@ -1,6 +1,9 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-use crate::data::LoxValue;
+use crate::{
+    data::{LoxIdent, LoxValue},
+    interpreter::{error::RuntimeError, IResult},
+};
 
 #[derive(Debug, Default)]
 struct EnvironmentInner {
@@ -29,36 +32,38 @@ impl Environment {
     }
 
     /// Defines a variable in the innermost scope.
-    pub fn define(&mut self, name: String, value: LoxValue) {
-        self.inner.borrow_mut().locals.insert(name, value);
+    pub fn define(&mut self, ident: LoxIdent, value: LoxValue) {
+        self.inner.borrow_mut().locals.insert(ident.name, value);
     }
 
     /// Assigns a variable. Returns `None` in case of undefined variable error.
-    #[must_use]
-    pub fn assign(&mut self, name: &str, value: LoxValue) -> Option<LoxValue> {
+    pub fn assign(&mut self, ident: &LoxIdent, value: LoxValue) -> IResult<LoxValue> {
         let mut maybe_inner = Some(self.inner.clone()); // this clone is cheap (Rc)
         while let Some(inner) = maybe_inner {
             let mut inner = inner.borrow_mut();
-            if let Some(value_ref) = inner.locals.get_mut(name) {
+            if let Some(value_ref) = inner.locals.get_mut(&ident.name) {
                 *value_ref = value.clone();
-                return Some(value);
+                return Ok(value);
             }
             maybe_inner = inner.enclosing.clone(); // this clone is cheap (Rc)
         }
-        None
+        Err(RuntimeError::UndefinedVariable {
+            ident: ident.clone(),
+        })
     }
 
     /// Reads a variable. Returns `None` in case of undefined variable error.
-    #[must_use]
-    pub fn read(&self, name: &str) -> Option<LoxValue> {
+    pub fn read(&self, ident: &LoxIdent) -> IResult<LoxValue> {
         let mut maybe_inner = Some(self.inner.clone()); // this clone is cheap (Rc)
         while let Some(inner) = maybe_inner {
             let inner = inner.borrow();
-            if let Some(value) = inner.locals.get(name) {
-                return Some(value.clone());
+            if let Some(value) = inner.locals.get(&ident.name) {
+                return Ok(value.clone());
             }
             maybe_inner = inner.enclosing.clone(); // this clone is cheap (Rc)
         }
-        None
+        Err(RuntimeError::UndefinedVariable {
+            ident: ident.clone(),
+        })
     }
 }

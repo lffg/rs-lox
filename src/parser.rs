@@ -5,7 +5,7 @@ use crate::{
         expr::{self, Expr, ExprKind},
         stmt::{self, Stmt, StmtKind},
     },
-    data::LoxValue,
+    data::{LoxIdent, LoxValue},
     parser::{error::ParseError, options::ParserOptions, scanner::Scanner},
     span::Span,
     token::{Token, TokenKind},
@@ -20,7 +20,6 @@ type PResult<T> = Result<T, ParseError>;
 pub type ParserOutcome = (Vec<Stmt>, Vec<ParseError>);
 
 pub struct Parser<'src> {
-    src: &'src str,
     scanner: Peekable<Scanner<'src>>,
     current_token: Token,
     prev_token: Token,
@@ -131,14 +130,7 @@ impl Parser<'_> {
     fn parse_helper_fn(&mut self, kind: &'static str, init_span: Span) -> PResult<Stmt> {
         use TokenKind::*;
 
-        // TODO: refactor this horrific thing
-        let name_span = self
-            .consume(
-                Identifier("<ident>".into()),
-                format!("Expected {} name", kind),
-            )?
-            .span;
-        let name = self.src[name_span.range()].into();
+        let name = self.consume_ident(format!("Expected {} name", kind))?;
 
         let params = self.paired(
             LeftParen,
@@ -148,10 +140,8 @@ impl Parser<'_> {
                 let mut params = Vec::new();
                 if !this.is(&RightParen) {
                     loop {
-                        let span = this
-                            .consume(Identifier("<ident>".into()), "Expected parameter name")?
-                            .span;
-                        params.push((this.src[span.range()].into(), span));
+                        let param = this.consume_ident("Expected parameter name")?;
+                        params.push(param);
                         if !this.take(Comma) {
                             break;
                         }
@@ -164,12 +154,7 @@ impl Parser<'_> {
         let (body, body_span) = self.parse_block()?;
 
         Ok(Stmt {
-            kind: StmtKind::from(stmt::Fun {
-                name,
-                name_span,
-                params,
-                body,
-            }),
+            kind: stmt::Fun { name, params, body }.into(),
             span: init_span.to(body_span),
         })
     }
@@ -178,30 +163,17 @@ impl Parser<'_> {
         use TokenKind::*;
         let var_span = self.consume(Var, S_MUST)?.span;
 
-        if let Identifier(name) = &self.current_token.kind {
-            let name = name.clone();
-            let name_span = self.advance().span;
+        let name = self.consume_ident("Expected variable name")?;
+        let init = self.take(Equal).then(|| self.parse_expr()).transpose()?;
 
-            let mut init = None;
-            if self.take(Equal) {
-                init = Some(self.parse_expr()?);
-            }
+        let semicolon_span = self
+            .consume(Semicolon, "Expected `;` after variable declaration")?
+            .span;
 
-            let semicolon_span = self
-                .consume(Semicolon, "Expected `;` after variable declaration")?
-                .span;
-
-            return Ok(Stmt {
-                kind: StmtKind::from(stmt::Var {
-                    name,
-                    name_span,
-                    init,
-                }),
-                span: var_span.to(semicolon_span),
-            });
-        }
-
-        Err(self.unexpected("Expected variable name", Some(Identifier("<ident>".into()))))
+        Ok(Stmt {
+            kind: stmt::Var { name, init }.into(),
+            span: var_span.to(semicolon_span),
+        })
     }
 
     //
@@ -235,11 +207,7 @@ impl Parser<'_> {
             |this| this.parse_expr(),
         )?;
         let then_branch = self.parse_stmt()?;
-        let else_branch = if self.take(Else) {
-            Some(self.parse_stmt()?)
-        } else {
-            None
-        };
+        let else_branch = self.take(Else).then(|| self.parse_stmt()).transpose()?;
 
         Ok(Stmt {
             span: if_token_span.to(else_branch
@@ -446,7 +414,6 @@ impl Parser<'_> {
                     span: left.span.to(value.span),
                     kind: ExprKind::from(expr::Assignment {
                         name,
-                        name_span: left.span,
                         value: value.into(),
                     }),
                 });
@@ -587,10 +554,13 @@ impl Parser<'_> {
                     span: token.span,
                 })
             }
-            Identifier(name) => Ok(Expr {
-                kind: expr::Var { name: name.clone() }.into(),
-                span: self.advance().span,
-            }),
+            Identifier(_) => {
+                let name = self.consume_ident(S_MUST)?;
+                Ok(Expr {
+                    span: name.span,
+                    kind: expr::Var { name }.into(),
+                })
+            }
             LeftParen => {
                 let (expr, span) = self.paired_spanned(
                     LeftParen,
@@ -613,7 +583,6 @@ impl<'src> Parser<'src> {
     /// Creates a new parser.
     pub fn new(src: &'src str) -> Self {
         let mut parser = Self {
-            src,
             scanner: Scanner::new(src).peekable(),
             current_token: Token::dummy(),
             prev_token: Token::dummy(),
@@ -668,6 +637,17 @@ impl<'src> Parser<'src> {
     fn consume(&mut self, expected: TokenKind, msg: impl Into<String>) -> PResult<&Token> {
         if self.is(&expected) {
             Ok(self.advance())
+        } else {
+            Err(self.unexpected(msg, Some(expected)))
+        }
+    }
+
+    /// Checks if the current token is an identifier. In such case advances and returns `Ok(_)` with
+    /// the parsed identifier. Otherwise returns an expectation error with the provided message.
+    fn consume_ident(&mut self, msg: impl Into<String>) -> PResult<LoxIdent> {
+        let expected = TokenKind::Identifier("<ident>".into());
+        if self.is(&expected) {
+            Ok(LoxIdent::from(self.advance().clone()))
         } else {
             Err(self.unexpected(msg, Some(expected)))
         }

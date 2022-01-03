@@ -56,7 +56,7 @@ impl TreePrinter {
                     s.emit(format!("Params ({})", fun.params.len()));
                     s.nest(|s| {
                         for param in &fun.params {
-                            s.emit(&param.0);
+                            s.emit(&param.name);
                         }
                     });
                     s.emit("Body");

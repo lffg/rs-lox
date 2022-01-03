@@ -62,6 +62,30 @@ impl Debug for LoxValue {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct LoxIdent {
+    pub name: String,
+    pub span: Span,
+}
+
+impl From<Token> for LoxIdent {
+    fn from(Token { kind, span }: Token) -> Self {
+        match kind {
+            TokenKind::Identifier(name) => LoxIdent { name, span },
+            unexpected => unreachable!(
+                "Invalid `Token` ({:?}) to `LoxIdent` conversion.",
+                unexpected
+            ),
+        }
+    }
+}
+
+impl Display for LoxIdent {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.name)
+    }
+}
+
 pub trait LoxCallable {
     fn call(&self, interpreter: &mut Interpreter, args: &[LoxValue]) -> IResult<LoxValue>;
     fn arity(&self) -> usize;
@@ -74,8 +98,8 @@ pub struct LoxFunction {
 impl LoxCallable for LoxFunction {
     fn call(&self, interpreter: &mut Interpreter, args: &[LoxValue]) -> IResult<LoxValue> {
         let mut env = Environment::new();
-        for (i, (param_name, _)) in self.fun_stmt.params.iter().enumerate() {
-            env.define(param_name.clone(), args[i].clone());
+        for (param, value) in self.fun_stmt.params.iter().zip(args) {
+            env.define(param.clone(), value.clone());
         }
         interpreter.eval_block(&self.fun_stmt.body, env)?;
         Ok(LoxValue::Nil)
