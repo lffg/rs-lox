@@ -6,6 +6,8 @@ use std::{
 use crate::{
     ast::stmt::Fun,
     interpreter::{environment::Environment, IResult, Interpreter},
+    span::Span,
+    token::{Token, TokenKind},
 };
 
 #[derive(Clone)]
@@ -84,13 +86,13 @@ impl LoxCallable for LoxFunction {
     }
 }
 pub struct NativeFunction {
-    pub ptr: fn(args: &[LoxValue]) -> IResult<LoxValue>,
+    pub fn_ptr: fn(args: &[LoxValue]) -> IResult<LoxValue>,
     pub arity: usize,
 }
 
 impl LoxCallable for NativeFunction {
     fn call(&self, _: &mut Interpreter, args: &[LoxValue]) -> IResult<LoxValue> {
-        (self.ptr)(args)
+        (self.fn_ptr)(args)
     }
 
     fn arity(&self) -> usize {

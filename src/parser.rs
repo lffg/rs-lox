@@ -5,10 +5,10 @@ use crate::{
         expr::{self, Expr, ExprKind},
         stmt::{self, Stmt, StmtKind},
     },
+    data::LoxValue,
     parser::{error::ParseError, options::ParserOptions, scanner::Scanner},
     span::Span,
     token::{Token, TokenKind},
-    value::LoxValue,
 };
 
 pub mod error;

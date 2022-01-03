@@ -1,7 +1,7 @@
 use crate::{
+    data::LoxValue,
     span::Span,
     token::{Token, TokenKind},
-    value::LoxValue,
 };
 
 #[derive(Debug, Clone)]

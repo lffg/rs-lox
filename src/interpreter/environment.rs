@@ -1,6 +1,6 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-use crate::value::LoxValue;
+use crate::data::LoxValue;
 
 #[derive(Debug, Default)]
 struct EnvironmentInner {

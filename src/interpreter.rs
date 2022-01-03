@@ -5,10 +5,10 @@ use crate::{
         expr::{self, Expr, ExprKind},
         stmt::{self, Stmt, StmtKind},
     },
+    data::{LoxFunction, LoxValue, NativeFunction},
     interpreter::{environment::Environment, error::RuntimeError},
     span::Span,
     token::TokenKind,
-    value::{LoxFunction, LoxValue, NativeFunction},
 };
 
 pub mod environment;
@@ -344,7 +344,7 @@ macro_rules! def_native {
         $fn
         $globals.define(
             stringify!($name).into(),
-            LoxValue::Function(Rc::new(NativeFunction { ptr: $name, arity: $arity })),
+            LoxValue::Function(Rc::new(NativeFunction { fn_ptr: $name, arity: $arity })),
         );
     };
 }
