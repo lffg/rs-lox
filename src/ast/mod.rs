@@ -1,6 +1,6 @@
 macro_rules! make_ast_enum {
     ( $enum_name:ident, [ $( $variant:ident ),* $( , )? ] ) => {
-        #[derive(Debug)]
+        #[derive(Debug, Clone)]
         pub enum $enum_name {
             $( $variant($variant), )*
         }

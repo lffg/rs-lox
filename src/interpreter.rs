@@ -8,7 +8,7 @@ use crate::{
     interpreter::{environment::Environment, error::RuntimeError},
     span::Span,
     token::TokenKind,
-    value::{LoxValue, NativeFunction},
+    value::{LoxFunction, LoxValue, NativeFunction},
 };
 
 pub mod environment;
@@ -46,10 +46,11 @@ impl Interpreter {
         use StmtKind::*;
         match &stmt.kind {
             Var(var) => self.eval_var_stmt(var),
+            Fun(fun) => self.eval_fun_stmt(fun),
             If(if_stmt) => self.eval_if_stmt(if_stmt),
             While(while_stmt) => self.eval_while_stmt(while_stmt),
             Print(print) => self.eval_print_stmt(print),
-            Block(block) => self.eval_block_stmt(block),
+            Block(block) => self.eval_block(&block.stmts, Environment::new_enclosed(&self.env)),
             Expr(expr) => self.eval_expr(&expr.expr).map(drop),
             Dummy(_) => unreachable!(),
         }
@@ -61,6 +62,16 @@ impl Interpreter {
             None => LoxValue::Nil,
         };
         self.env.define(var.name.clone(), value);
+        Ok(())
+    }
+
+    fn eval_fun_stmt(&mut self, fun: &stmt::Fun) -> IResult<()> {
+        self.env.define(
+            fun.name.clone(),
+            LoxValue::Function(Rc::new(LoxFunction {
+                fun_stmt: fun.clone(),
+            })),
+        );
         Ok(())
     }
 
@@ -90,12 +101,11 @@ impl Interpreter {
         Ok(())
     }
 
-    fn eval_block_stmt(&mut self, block: &stmt::Block) -> IResult<()> {
-        let new = Environment::new_enclosed(&self.env);
-        let old = mem::replace(&mut self.env, new);
-        let res = self.eval_stmts(&block.stmts);
-        self.env = old;
-        res
+    pub(crate) fn eval_block(&mut self, stmts: &[Stmt], new_env: Environment) -> IResult<()> {
+        let old_env = mem::replace(&mut self.env, new_env);
+        let result = self.eval_stmts(stmts);
+        self.env = old_env;
+        result
     }
 
     //

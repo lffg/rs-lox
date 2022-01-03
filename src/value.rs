@@ -3,7 +3,10 @@ use std::{
     rc::Rc,
 };
 
-use crate::interpreter::{IResult, Interpreter};
+use crate::{
+    ast::stmt::Fun,
+    interpreter::{environment::Environment, IResult, Interpreter},
+};
 
 #[derive(Clone)]
 pub enum LoxValue {
@@ -62,6 +65,24 @@ pub trait LoxCallable {
     fn arity(&self) -> usize;
 }
 
+pub struct LoxFunction {
+    pub fun_stmt: Fun,
+}
+
+impl LoxCallable for LoxFunction {
+    fn call(&self, interpreter: &mut Interpreter, args: &[LoxValue]) -> IResult<LoxValue> {
+        let mut env = Environment::new();
+        for (i, (param_name, _)) in self.fun_stmt.params.iter().enumerate() {
+            env.define(param_name.clone(), args[i].clone());
+        }
+        interpreter.eval_block(&self.fun_stmt.body, env)?;
+        Ok(LoxValue::Nil)
+    }
+
+    fn arity(&self) -> usize {
+        self.fun_stmt.params.len()
+    }
+}
 pub struct NativeFunction {
     pub ptr: fn(args: &[LoxValue]) -> IResult<LoxValue>,
     pub arity: usize,

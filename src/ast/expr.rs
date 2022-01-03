@@ -4,7 +4,7 @@ use crate::{
     value::LoxValue,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Expr {
     pub kind: ExprKind,
     pub span: Span,
@@ -15,48 +15,48 @@ make_ast_enum!(
     [Lit, Var, Group, Call, Unary, Binary, Logical, Assignment]
 );
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Lit {
     pub value: LoxValue,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Var {
     pub name: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Group {
     pub expr: Box<Expr>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Call {
     pub callee: Box<Expr>,
     pub args: Vec<Expr>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Unary {
     pub operator: Token,
     pub operand: Box<Expr>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Binary {
     pub left: Box<Expr>,
     pub operator: Token,
     pub right: Box<Expr>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Logical {
     pub left: Box<Expr>,
     pub operator: Token,
     pub right: Box<Expr>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Assignment {
     pub name: String,
     pub name_span: Span,

@@ -49,6 +49,20 @@ impl TreePrinter {
                     }
                 });
             }
+            Fun(fun) => {
+                self.emit("Fun Decl");
+                self.nest(|s| {
+                    s.emit(format!("Name = `{}`", fun.name));
+                    s.emit(format!("Params ({})", fun.params.len()));
+                    s.nest(|s| {
+                        for param in &fun.params {
+                            s.emit(&param.0);
+                        }
+                    });
+                    s.emit("Body");
+                    s.nest(|s| s.print_stmts(&fun.body));
+                });
+            }
             If(if_stmt) => {
                 self.emit("If Stmt");
                 self.nest(|s| {

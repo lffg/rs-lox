@@ -20,6 +20,7 @@ type PResult<T> = Result<T, ParseError>;
 pub type ParserOutcome = (Vec<Stmt>, Vec<ParseError>);
 
 pub struct Parser<'src> {
+    src: &'src str,
     scanner: Peekable<Scanner<'src>>,
     current_token: Token,
     prev_token: Token,
@@ -33,46 +34,52 @@ pub struct Parser<'src> {
 //
 // -----------------------------------------------------------------------------
 //
-// program     ::= decl* EOF ;
+// program       ::= decl* EOF ;
 //
-// decl        ::= var_decl
-//               | stmt ;
+// decl          ::= var_decl
+//                 | fun_decl
+//                 | stmt ;
 //
-// var_decl    ::= "var" IDENTIFIER ( "=" expr )? ";" ;
+// var_decl      ::= "var" IDENTIFIER ( "=" expr )? ";" ;
+// fun_decl      ::= "fun" fn ;
 //
-// stmt        ::= if_stmt
-//               | for_stmt
-//               | while_stmt
-//               | print_stmt
-//               | block_stmt
-//               | expr_stmt ;
+// fn            ::= IDENTIFIER "(" params? ")" ;
+// params        ::= IDENTIFIER ( "," IDENTIFIER )* ;
 //
-// if_stmt     ::= "if" "(" expr ")" statement ( "else" statement )? ;
-// for_stmt    ::= "for" for_clauses statement ;
-// for_clauses ::= "(" ( var_decl | expr_stmt | ";" ) expr? ";" expr? ")" ;
-// while_stmt  ::= "while" "(" expr ")" statement ;
-// print_stmt  ::= "print" expr ";" ;
-// block_stmt  ::= "{" declaration* "}" ;
-// expr_stmt   ::= expr ";" ;
+// stmt          ::= if_stmt
+//                 | for_stmt
+//                 | while_stmt
+//                 | print_stmt
+//                 | block_stmt
+//                 | expr_stmt ;
 //
-// expr        ::= assignment ;
-// assignment  ::= IDENTIFIER "=" expr
-//               | logic_or ;
-// logic_or    ::= logic_and ( "or" logic_and )* ;
-// logic_and   ::= equality ( "and" equality )* ;
-// equality    ::= comparison ( ( "==" | "!=" ) comparison )* ;
-// comparison  ::= term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
-// term        ::= factor ( ( "+" | "-" ) factor )* ;
-// factor      ::= unary ( ( "*" | "/" ) unary )* ;
-// unary       ::= ( "show" | "typeof" | "!" | "-" ) unary
-//               | call ;
-// call        ::= primary ( "(" arguments? ")" )* ;
-// arguments   ::= expr ( "," expr )* ;
-// primary     ::= IDENTIFIER
-//               | NUMBER | STRING
-//               | "true" | "false"
-//               | "nil"
-//               | "(" expr ")" ;
+// if_stmt       ::= "if" "(" expr ")" statement ( "else" statement )? ;
+// for_stmt      ::= "for"
+//                   "(" ( var_decl | expr_stmt | ";" ) expr? ";" expr? ")"
+//                   statement ;
+// while_stmt    ::= "while" "(" expr ")" statement ;
+// print_stmt    ::= "print" expr ";" ;
+// block_stmt    ::= "{" declaration* "}" ;
+// expr_stmt     ::= expr ";" ;
+//
+// expr          ::= assignment ;
+// assignment    ::= IDENTIFIER "=" expr
+//                 | logic_or ;
+// logic_or      ::= logic_and ( "or" logic_and )* ;
+// logic_and     ::= equality ( "and" equality )* ;
+// equality      ::= comparison ( ( "==" | "!=" ) comparison )* ;
+// comparison    ::= term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
+// term          ::= factor ( ( "+" | "-" ) factor )* ;
+// factor        ::= unary ( ( "*" | "/" ) unary )* ;
+// unary         ::= ( "show" | "typeof" | "!" | "-" ) unary
+//                 | call ;
+// call          ::= primary ( "(" arguments? ")" )* ;
+// arguments     ::= expr ( "," expr )* ;
+// primary       ::= IDENTIFIER
+//                 | NUMBER | STRING
+//                 | "true" | "false"
+//                 | "nil"
+//                 | "(" expr ")" ;
 //
 // -----------------------------------------------------------------------------
 //
@@ -98,6 +105,10 @@ impl Parser<'_> {
         use TokenKind::*;
         let result = match self.current_token.kind {
             Var => self.parse_var_decl(),
+            Fun => {
+                let fun_span = self.advance().span;
+                self.parse_helper_fn("function", fun_span)
+            }
             _ => self.parse_stmt(),
         };
 
@@ -113,6 +124,54 @@ impl Parser<'_> {
                 }
             }
         }
+    }
+
+    // fn     ::= IDENTIFIER "(" params? ")" ;
+    // params ::= IDENTIFIER ( "," IDENTIFIER )* ;
+    fn parse_helper_fn(&mut self, kind: &'static str, init_span: Span) -> PResult<Stmt> {
+        use TokenKind::*;
+
+        // TODO: refactor this horrific thing
+        let name_span = self
+            .consume(
+                Identifier("<ident>".into()),
+                format!("Expected {} name", kind),
+            )?
+            .span;
+        let name = self.src[name_span.range()].into();
+
+        let params = self.paired(
+            LeftParen,
+            format!("Expected `(` after {} name", kind),
+            format!("Expected `)` after {} parameter list", kind),
+            |this| {
+                let mut params = Vec::new();
+                if !this.is(&RightParen) {
+                    loop {
+                        let span = this
+                            .consume(Identifier("<ident>".into()), "Expected parameter name")?
+                            .span;
+                        params.push((this.src[span.range()].into(), span));
+                        if !this.take(Comma) {
+                            break;
+                        }
+                    }
+                }
+                Ok(params)
+            },
+        )?;
+
+        let (body, body_span) = self.parse_block()?;
+
+        Ok(Stmt {
+            kind: StmtKind::from(stmt::Fun {
+                name,
+                name_span,
+                params,
+                body,
+            }),
+            span: init_span.to(body_span),
+        })
     }
 
     fn parse_var_decl(&mut self) -> PResult<Stmt> {
@@ -554,6 +613,7 @@ impl<'src> Parser<'src> {
     /// Creates a new parser.
     pub fn new(src: &'src str) -> Self {
         let mut parser = Self {
+            src,
             scanner: Scanner::new(src).peekable(),
             current_token: Token::dummy(),
             prev_token: Token::dummy(),
@@ -660,12 +720,8 @@ impl<'src> Parser<'src> {
     /// Returns an `ParseError::UnexpectedToken`.
     #[inline(always)]
     fn unexpected(&self, message: impl Into<String>, expected: Option<TokenKind>) -> ParseError {
-        let mut message = message.into();
-        if message == S_MUST {
-            message = "Parser bug. Unexpected token".into()
-        }
         ParseError::UnexpectedToken {
-            message,
+            message: message.into(),
             expected,
             offending: self.current_token.clone(),
         }
@@ -712,7 +768,7 @@ impl<'src> Parser<'src> {
 }
 
 /// (String Must) Indicates the parser to emit a parser error (i.e. the parser is bugged) message.
-const S_MUST: &str = "@@must";
+const S_MUST: &str = "Parser bug. Unexpected token";
 
 /// Parses a binary expression.
 macro_rules! bin_expr {
