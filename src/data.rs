@@ -92,16 +92,17 @@ pub trait LoxCallable {
 }
 
 pub struct LoxFunction {
-    pub fun_stmt: Fun,
+    pub declaration: Fun,
+    pub closure: Environment,
 }
 
 impl LoxCallable for LoxFunction {
     fn call(&self, interpreter: &mut Interpreter, args: &[LoxValue]) -> CFResult<LoxValue> {
-        let mut env = Environment::new_enclosed(&interpreter.env);
-        for (param, value) in self.fun_stmt.params.iter().zip(args) {
+        let mut env = Environment::new_enclosed(&self.closure);
+        for (param, value) in self.declaration.params.iter().zip(args) {
             env.define(param.clone(), value.clone());
         }
-        match interpreter.eval_block(&self.fun_stmt.body, env) {
+        match interpreter.eval_block(&self.declaration.body, env) {
             Ok(()) => Ok(LoxValue::Nil),
             Err(ControlFlow::Return(value)) => Ok(value),
             Err(other) => Err(other),
@@ -109,7 +110,7 @@ impl LoxCallable for LoxFunction {
     }
 
     fn arity(&self) -> usize {
-        self.fun_stmt.params.len()
+        self.declaration.params.len()
     }
 }
 pub struct NativeFunction {

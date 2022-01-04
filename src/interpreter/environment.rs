@@ -11,7 +11,7 @@ struct EnvironmentInner {
     locals: HashMap<String, LoxValue>,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct Environment {
     inner: Rc<RefCell<EnvironmentInner>>,
 }

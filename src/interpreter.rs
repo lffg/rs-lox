@@ -20,7 +20,7 @@ pub type CFResult<T> = Result<T, ControlFlow<LoxValue, RuntimeError>>;
 
 #[derive(Debug)]
 pub struct Interpreter {
-    pub env: Environment,
+    env: Environment,
 }
 
 // The interpreter implementation.
@@ -78,7 +78,8 @@ impl Interpreter {
         self.env.define(
             fun.name.clone(),
             LoxValue::Function(Rc::new(LoxFunction {
-                fun_stmt: fun.clone(),
+                declaration: fun.clone(),
+                closure: self.env.clone(),
             })),
         );
         Ok(())
