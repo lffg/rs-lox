@@ -29,3 +29,7 @@ Welcome to rs-lox. Enter Ctrl+D or `:exit` to exit.
 #### TODO: 
 
 - `self.maybe_trailing_semicolon();`
+- Fix multi repl prompt problem, e.g.:
+    - `>>> fun foo() { bar; }`
+    - `>>> bar();`
+    - Will panic. Solve this.

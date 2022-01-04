@@ -22,6 +22,7 @@ impl Environment {
         Default::default()
     }
 
+    /// Creates a new `Environment` enclosing the given `Environment`.
     pub fn new_enclosed(enclosing: &Environment) -> Self {
         Self {
             inner: Rc::new(RefCell::new(EnvironmentInner {

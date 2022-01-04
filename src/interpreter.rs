@@ -1,4 +1,4 @@
-use std::{error::Error, mem, rc::Rc};
+use std::{mem, rc::Rc};
 
 use crate::{
     ast::{
@@ -6,31 +6,21 @@ use crate::{
         stmt::{self, Stmt, StmtKind},
     },
     data::{LoxFunction, LoxIdent, LoxValue, NativeFunction},
-    interpreter::{environment::Environment, error::RuntimeError},
+    interpreter::{control_flow::ControlFlow, environment::Environment, error::RuntimeError},
     span::Span,
     token::TokenKind,
 };
 
+pub mod control_flow;
 pub mod environment;
 pub mod error;
 
 /// Control flow result
 pub type CFResult<T> = Result<T, ControlFlow<LoxValue, RuntimeError>>;
 
-pub enum ControlFlow<R, E> {
-    Return(R),
-    Err(E),
-}
-
-impl<R, E: Error> From<E> for ControlFlow<R, E> {
-    fn from(err: E) -> Self {
-        ControlFlow::Err(err)
-    }
-}
-
 #[derive(Debug)]
 pub struct Interpreter {
-    env: Environment,
+    pub env: Environment,
 }
 
 // The interpreter implementation.
@@ -278,10 +268,10 @@ impl Interpreter {
 
 impl Default for Interpreter {
     fn default() -> Self {
-        let mut globals = Environment::new();
+        let mut global_env = Environment::new();
 
         def_native!(
-            globals.clock / 0,
+            global_env.clock / 0,
             fn clock(_: &[LoxValue]) -> CFResult<LoxValue> {
                 use std::time::{SystemTime, UNIX_EPOCH};
                 let start = SystemTime::now();
@@ -290,8 +280,7 @@ impl Default for Interpreter {
             }
         );
 
-        let env = Environment::new_enclosed(&globals);
-        Self { env }
+        Self { env: global_env }
     }
 }
 

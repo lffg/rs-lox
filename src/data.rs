@@ -5,7 +5,7 @@ use std::{
 
 use crate::{
     ast::stmt::Fun,
-    interpreter::{environment::Environment, CFResult, ControlFlow, Interpreter},
+    interpreter::{control_flow::ControlFlow, environment::Environment, CFResult, Interpreter},
     span::Span,
     token::{Token, TokenKind},
 };
@@ -97,7 +97,7 @@ pub struct LoxFunction {
 
 impl LoxCallable for LoxFunction {
     fn call(&self, interpreter: &mut Interpreter, args: &[LoxValue]) -> CFResult<LoxValue> {
-        let mut env = Environment::new();
+        let mut env = Environment::new_enclosed(&interpreter.env);
         for (param, value) in self.fun_stmt.params.iter().zip(args) {
             env.define(param.clone(), value.clone());
         }
