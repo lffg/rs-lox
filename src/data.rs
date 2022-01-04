@@ -5,7 +5,7 @@ use std::{
 
 use crate::{
     ast::stmt::Fun,
-    interpreter::{environment::Environment, IResult, Interpreter},
+    interpreter::{environment::Environment, CFResult, ControlFlow, Interpreter},
     span::Span,
     token::{Token, TokenKind},
 };
@@ -87,7 +87,7 @@ impl Display for LoxIdent {
 }
 
 pub trait LoxCallable {
-    fn call(&self, interpreter: &mut Interpreter, args: &[LoxValue]) -> IResult<LoxValue>;
+    fn call(&self, interpreter: &mut Interpreter, args: &[LoxValue]) -> CFResult<LoxValue>;
     fn arity(&self) -> usize;
 }
 
@@ -96,13 +96,16 @@ pub struct LoxFunction {
 }
 
 impl LoxCallable for LoxFunction {
-    fn call(&self, interpreter: &mut Interpreter, args: &[LoxValue]) -> IResult<LoxValue> {
+    fn call(&self, interpreter: &mut Interpreter, args: &[LoxValue]) -> CFResult<LoxValue> {
         let mut env = Environment::new();
         for (param, value) in self.fun_stmt.params.iter().zip(args) {
             env.define(param.clone(), value.clone());
         }
-        interpreter.eval_block(&self.fun_stmt.body, env)?;
-        Ok(LoxValue::Nil)
+        match interpreter.eval_block(&self.fun_stmt.body, env) {
+            Ok(()) => Ok(LoxValue::Nil),
+            Err(ControlFlow::Return(value)) => Ok(value),
+            Err(other) => Err(other),
+        }
     }
 
     fn arity(&self) -> usize {
@@ -110,12 +113,12 @@ impl LoxCallable for LoxFunction {
     }
 }
 pub struct NativeFunction {
-    pub fn_ptr: fn(args: &[LoxValue]) -> IResult<LoxValue>,
+    pub fn_ptr: fn(args: &[LoxValue]) -> CFResult<LoxValue>,
     pub arity: usize,
 }
 
 impl LoxCallable for NativeFunction {
-    fn call(&self, _: &mut Interpreter, args: &[LoxValue]) -> IResult<LoxValue> {
+    fn call(&self, _: &mut Interpreter, args: &[LoxValue]) -> CFResult<LoxValue> {
         (self.fn_ptr)(args)
     }
 

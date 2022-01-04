@@ -85,6 +85,12 @@ impl TreePrinter {
                     s.nest(|s| s.print_stmt(&while_stmt.body));
                 })
             }
+            Return(return_stmt) => {
+                self.emit("Return Stmt");
+                if let Some(value) = &return_stmt.value {
+                    self.nest(|s| s.print_expr(value));
+                }
+            }
             Print(print) => {
                 self.emit("Print Stmt");
                 self.nest(|s| {

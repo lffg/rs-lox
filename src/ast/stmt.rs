@@ -6,7 +6,10 @@ pub struct Stmt {
     pub span: Span,
 }
 
-make_ast_enum!(StmtKind, [Var, Fun, If, While, Print, Block, Expr, Dummy]);
+make_ast_enum!(
+    StmtKind,
+    [Var, Fun, If, While, Return, Print, Block, Expr, Dummy]
+);
 
 #[derive(Debug, Clone)]
 pub struct Var {
@@ -32,6 +35,11 @@ pub struct If {
 pub struct While {
     pub cond: expr::Expr,
     pub body: Box<Stmt>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Return {
+    pub value: Option<expr::Expr>,
 }
 
 #[derive(Debug, Clone)]

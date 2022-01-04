@@ -1,4 +1,4 @@
-use std::{mem, rc::Rc};
+use std::{error::Error, mem, rc::Rc};
 
 use crate::{
     ast::{
@@ -14,7 +14,19 @@ use crate::{
 pub mod environment;
 pub mod error;
 
-pub type IResult<T> = Result<T, RuntimeError>;
+/// Control flow result
+pub type CFResult<T> = Result<T, ControlFlow<LoxValue, RuntimeError>>;
+
+pub enum ControlFlow<R, E> {
+    Return(R),
+    Err(E),
+}
+
+impl<R, E: Error> From<E> for ControlFlow<R, E> {
+    fn from(err: E) -> Self {
+        ControlFlow::Err(err)
+    }
+}
 
 #[derive(Debug)]
 pub struct Interpreter {
@@ -27,28 +39,35 @@ impl Interpreter {
         Default::default()
     }
 
-    pub fn interpret(&mut self, stmts: &[Stmt]) -> IResult<()> {
-        self.eval_stmts(stmts)
+    // Note that `CFResult` must not be exposed to the interpreter caller.
+    // It is an implementation detail.
+    pub fn interpret(&mut self, stmts: &[Stmt]) -> Result<(), RuntimeError> {
+        match self.eval_stmts(stmts) {
+            Ok(()) => Ok(()),
+            Err(ControlFlow::Err(err)) => Err(err),
+            Err(ControlFlow::Return(_)) => unreachable!(),
+        }
     }
 
     //
     // Statements
     //
 
-    fn eval_stmts(&mut self, stmts: &[Stmt]) -> IResult<()> {
+    fn eval_stmts(&mut self, stmts: &[Stmt]) -> CFResult<()> {
         for stmt in stmts {
             self.eval_stmt(stmt)?;
         }
         Ok(())
     }
 
-    fn eval_stmt(&mut self, stmt: &Stmt) -> IResult<()> {
+    fn eval_stmt(&mut self, stmt: &Stmt) -> CFResult<()> {
         use StmtKind::*;
         match &stmt.kind {
             Var(var) => self.eval_var_stmt(var),
             Fun(fun) => self.eval_fun_stmt(fun),
             If(if_stmt) => self.eval_if_stmt(if_stmt),
             While(while_stmt) => self.eval_while_stmt(while_stmt),
+            Return(return_stmt) => self.eval_return_stmt(return_stmt),
             Print(print) => self.eval_print_stmt(print),
             Block(block) => self.eval_block(&block.stmts, Environment::new_enclosed(&self.env)),
             Expr(expr) => self.eval_expr(&expr.expr).map(drop),
@@ -56,7 +75,7 @@ impl Interpreter {
         }
     }
 
-    fn eval_var_stmt(&mut self, var: &stmt::Var) -> IResult<()> {
+    fn eval_var_stmt(&mut self, var: &stmt::Var) -> CFResult<()> {
         let value = match &var.init {
             Some(expr) => self.eval_expr(expr)?,
             None => LoxValue::Nil,
@@ -65,7 +84,7 @@ impl Interpreter {
         Ok(())
     }
 
-    fn eval_fun_stmt(&mut self, fun: &stmt::Fun) -> IResult<()> {
+    fn eval_fun_stmt(&mut self, fun: &stmt::Fun) -> CFResult<()> {
         self.env.define(
             fun.name.clone(),
             LoxValue::Function(Rc::new(LoxFunction {
@@ -75,7 +94,7 @@ impl Interpreter {
         Ok(())
     }
 
-    fn eval_if_stmt(&mut self, if_stmt: &stmt::If) -> IResult<()> {
+    fn eval_if_stmt(&mut self, if_stmt: &stmt::If) -> CFResult<()> {
         let cond_value = self.eval_expr(&if_stmt.cond)?;
         if lox_is_truthy(&cond_value) {
             self.eval_stmt(&if_stmt.then_branch)?;
@@ -85,14 +104,24 @@ impl Interpreter {
         Ok(())
     }
 
-    fn eval_while_stmt(&mut self, while_stmt: &stmt::While) -> IResult<()> {
+    fn eval_while_stmt(&mut self, while_stmt: &stmt::While) -> CFResult<()> {
         while lox_is_truthy(&self.eval_expr(&while_stmt.cond)?) {
             self.eval_stmt(&while_stmt.body)?;
         }
         Ok(())
     }
 
-    fn eval_print_stmt(&mut self, print: &stmt::Print) -> IResult<()> {
+    fn eval_return_stmt(&mut self, return_stmt: &stmt::Return) -> CFResult<()> {
+        let value = return_stmt
+            .value
+            .as_ref()
+            .map(|expr| self.eval_expr(expr))
+            .transpose()?
+            .unwrap_or(LoxValue::Nil);
+        Err(ControlFlow::Return(value))
+    }
+
+    fn eval_print_stmt(&mut self, print: &stmt::Print) -> CFResult<()> {
         let val = self.eval_expr(&print.expr)?;
         match print.debug {
             true => println!("{:?}", val),
@@ -101,7 +130,7 @@ impl Interpreter {
         Ok(())
     }
 
-    pub(crate) fn eval_block(&mut self, stmts: &[Stmt], new_env: Environment) -> IResult<()> {
+    pub(crate) fn eval_block(&mut self, stmts: &[Stmt], new_env: Environment) -> CFResult<()> {
         let old_env = mem::replace(&mut self.env, new_env);
         let result = self.eval_stmts(stmts);
         self.env = old_env;
@@ -112,7 +141,7 @@ impl Interpreter {
     // Expressions
     //
 
-    fn eval_expr(&mut self, expr: &Expr) -> IResult<LoxValue> {
+    fn eval_expr(&mut self, expr: &Expr) -> CFResult<LoxValue> {
         use ExprKind::*;
         match &expr.kind {
             Lit(lit) => self.eval_lit_expr(lit),
@@ -126,15 +155,15 @@ impl Interpreter {
         }
     }
 
-    fn eval_lit_expr(&mut self, lit: &expr::Lit) -> IResult<LoxValue> {
+    fn eval_lit_expr(&mut self, lit: &expr::Lit) -> CFResult<LoxValue> {
         Ok(lit.value.clone())
     }
 
-    fn eval_group_expr(&mut self, group: &expr::Group) -> IResult<LoxValue> {
+    fn eval_group_expr(&mut self, group: &expr::Group) -> CFResult<LoxValue> {
         self.eval_expr(&group.expr)
     }
 
-    fn eval_call_expr(&mut self, call: &expr::Call, span: Span) -> IResult<LoxValue> {
+    fn eval_call_expr(&mut self, call: &expr::Call, span: Span) -> CFResult<LoxValue> {
         use LoxValue::*;
         let callee = self.eval_expr(&call.callee)?;
         let args = call
@@ -152,18 +181,20 @@ impl Interpreter {
                     args.len()
                 ),
                 span,
-            }),
+            }
+            .into()),
             _ => Err(RuntimeError::UnsupportedType {
                 message: format!(
                     "Type `{}` is not callable, can only call functions and classes",
                     callee.type_name()
                 ),
                 span,
-            }),
+            }
+            .into()),
         }
     }
 
-    fn eval_unary_expr(&mut self, unary: &expr::Unary) -> IResult<LoxValue> {
+    fn eval_unary_expr(&mut self, unary: &expr::Unary) -> CFResult<LoxValue> {
         let operand = self.eval_expr(&unary.operand)?;
         match &unary.operator.kind {
             TokenKind::Minus => match operand {
@@ -174,7 +205,8 @@ impl Interpreter {
                         unexpected.type_name()
                     ),
                     span: unary.operator.span,
-                }),
+                }
+                .into()),
             },
             TokenKind::Bang => Ok(LoxValue::Boolean(!lox_is_truthy(&operand))),
             TokenKind::Show => Ok(LoxValue::String(operand.to_string())),
@@ -183,7 +215,7 @@ impl Interpreter {
         }
     }
 
-    fn eval_binary_expr(&mut self, binary: &expr::Binary) -> IResult<LoxValue> {
+    fn eval_binary_expr(&mut self, binary: &expr::Binary) -> CFResult<LoxValue> {
         use LoxValue::*;
         let left = self.eval_expr(&binary.left)?;
         let right = self.eval_expr(&binary.right)?;
@@ -199,7 +231,8 @@ impl Interpreter {
                         right.type_name()
                     ),
                     span: binary.operator.span,
-                }),
+                }
+                .into()),
             },
 
             TokenKind::Minus => bin_number_operator!(left - right, binary.operator),
@@ -209,7 +242,8 @@ impl Interpreter {
                     if right_num == 0.0 {
                         return Err(RuntimeError::ZeroDivision {
                             span: binary.operator.span,
-                        });
+                        }
+                        .into());
                     }
                 }
                 bin_number_operator!(left / right, binary.operator)
@@ -227,7 +261,7 @@ impl Interpreter {
         }
     }
 
-    fn eval_logical_expr(&mut self, logical: &expr::Logical) -> IResult<LoxValue> {
+    fn eval_logical_expr(&mut self, logical: &expr::Logical) -> CFResult<LoxValue> {
         let left = self.eval_expr(&logical.left)?;
         match &logical.operator.kind {
             TokenKind::And if !lox_is_truthy(&left) => Ok(left),
@@ -236,9 +270,9 @@ impl Interpreter {
         }
     }
 
-    fn eval_assignment_expr(&mut self, assignment: &expr::Assignment) -> IResult<LoxValue> {
+    fn eval_assignment_expr(&mut self, assignment: &expr::Assignment) -> CFResult<LoxValue> {
         let value = self.eval_expr(&assignment.value)?;
-        self.env.assign(&assignment.name, value)
+        Ok(self.env.assign(&assignment.name, value)?)
     }
 }
 
@@ -248,7 +282,7 @@ impl Default for Interpreter {
 
         def_native!(
             globals.clock / 0,
-            fn clock(_: &[LoxValue]) -> IResult<LoxValue> {
+            fn clock(_: &[LoxValue]) -> CFResult<LoxValue> {
                 use std::time::{SystemTime, UNIX_EPOCH};
                 let start = SystemTime::now();
                 let since_the_epoch = start.duration_since(UNIX_EPOCH).unwrap().as_secs_f64();
@@ -302,7 +336,8 @@ macro_rules! bin_number_operator {
                     right.type_name()
                 ),
                 span: $op_token.span
-            }),
+            }
+            .into()),
         }
     };
 }
@@ -322,7 +357,8 @@ macro_rules! bin_comparison_operator {
                     right.type_name()
                 ),
                 span: $op_token.span,
-            }),
+            }
+            .into()),
         }
     };
 }

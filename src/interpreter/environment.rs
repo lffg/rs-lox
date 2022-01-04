@@ -2,7 +2,7 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::{
     data::{LoxIdent, LoxValue},
-    interpreter::{error::RuntimeError, IResult},
+    interpreter::{error::RuntimeError, CFResult},
 };
 
 #[derive(Debug, Default)]
@@ -37,7 +37,7 @@ impl Environment {
     }
 
     /// Assigns a variable. Returns `None` in case of undefined variable error.
-    pub fn assign(&mut self, ident: &LoxIdent, value: LoxValue) -> IResult<LoxValue> {
+    pub fn assign(&mut self, ident: &LoxIdent, value: LoxValue) -> CFResult<LoxValue> {
         let mut maybe_inner = Some(self.inner.clone()); // this clone is cheap (Rc)
         while let Some(inner) = maybe_inner {
             let mut inner = inner.borrow_mut();
@@ -49,11 +49,12 @@ impl Environment {
         }
         Err(RuntimeError::UndefinedVariable {
             ident: ident.clone(),
-        })
+        }
+        .into())
     }
 
     /// Reads a variable. Returns `None` in case of undefined variable error.
-    pub fn read(&self, ident: &LoxIdent) -> IResult<LoxValue> {
+    pub fn read(&self, ident: &LoxIdent) -> CFResult<LoxValue> {
         let mut maybe_inner = Some(self.inner.clone()); // this clone is cheap (Rc)
         while let Some(inner) = maybe_inner {
             let inner = inner.borrow();
@@ -64,6 +65,7 @@ impl Environment {
         }
         Err(RuntimeError::UndefinedVariable {
             ident: ident.clone(),
-        })
+        }
+        .into())
     }
 }

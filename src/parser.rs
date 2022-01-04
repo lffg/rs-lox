@@ -6,15 +6,20 @@ use crate::{
         stmt::{self, Stmt, StmtKind},
     },
     data::{LoxIdent, LoxValue},
-    parser::{error::ParseError, options::ParserOptions, scanner::Scanner},
+    parser::{
+        error::ParseError,
+        scanner::Scanner,
+        state::{ParserContext, ParserOptions},
+    },
     span::Span,
     token::{Token, TokenKind},
 };
 
 pub mod error;
-pub mod options;
 pub mod scanner;
+pub mod state;
 
+/// Parse result
 type PResult<T> = Result<T, ParseError>;
 
 pub type ParserOutcome = (Vec<Stmt>, Vec<ParseError>);
@@ -24,6 +29,7 @@ pub struct Parser<'src> {
     current_token: Token,
     prev_token: Token,
     diagnostics: Vec<ParseError>,
+    context: ParserContext,
     pub options: ParserOptions,
 }
 
@@ -48,6 +54,7 @@ pub struct Parser<'src> {
 // stmt          ::= if_stmt
 //                 | for_stmt
 //                 | while_stmt
+//                 | return_stmt
 //                 | print_stmt
 //                 | block_stmt
 //                 | expr_stmt ;
@@ -57,6 +64,7 @@ pub struct Parser<'src> {
 //                   "(" ( var_decl | expr_stmt | ";" ) expr? ";" expr? ")"
 //                   statement ;
 // while_stmt    ::= "while" "(" expr ")" statement ;
+// return_stmt   ::= "return" expr? ";" ;
 // print_stmt    ::= "print" expr ";" ;
 // block_stmt    ::= "{" declaration* "}" ;
 // expr_stmt     ::= expr ";" ;
@@ -149,7 +157,10 @@ impl Parser<'_> {
             },
         )?;
 
-        let (body, body_span) = self.parse_block()?;
+        let prev = mem::replace(&mut self.context.within_fn, true);
+        let block_result = self.parse_block();
+        self.context.within_fn = prev;
+        let (body, body_span) = block_result?;
 
         Ok(Stmt {
             kind: stmt::Fun { name, params, body }.into(),
@@ -184,6 +195,7 @@ impl Parser<'_> {
             If => self.parse_if_stmt(),
             For => self.parse_for_stmt(),
             While => self.parse_while_stmt(),
+            Return => self.parse_return_stmt(),
             Print => self.parse_print_stmt(),
             LeftBrace => {
                 let (stmts, span) = self.parse_block()?;
@@ -335,6 +347,30 @@ impl Parser<'_> {
                 cond,
                 body: body.into(),
             }),
+        })
+    }
+
+    fn parse_return_stmt(&mut self) -> PResult<Stmt> {
+        let return_token_span = self.consume(TokenKind::Return, S_MUST)?.span;
+
+        if !self.context.within_fn {
+            self.diagnostics.push(ParseError::Error {
+                message: "Illegal return statement".into(),
+                span: return_token_span,
+            })
+        }
+
+        let value = (!self.is(&TokenKind::Semicolon))
+            .then(|| self.parse_expr())
+            .transpose()?;
+
+        let semicolon_span = self
+            .consume(TokenKind::Semicolon, "Expected `;` after return")?
+            .span;
+
+        Ok(Stmt {
+            kind: stmt::Return { value }.into(),
+            span: return_token_span.to(semicolon_span),
         })
     }
 
@@ -585,7 +621,8 @@ impl<'src> Parser<'src> {
             current_token: Token::dummy(),
             prev_token: Token::dummy(),
             diagnostics: Vec::new(),
-            options: Default::default(),
+            context: ParserContext::default(),
+            options: ParserOptions::default(),
         };
         parser.advance(); // The first advancement.
         parser
