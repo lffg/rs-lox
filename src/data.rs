@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::{
-    ast::stmt::Fun,
+    ast::stmt::FunDecl,
     interpreter::{control_flow::ControlFlow, environment::Environment, CFResult, Interpreter},
     span::Span,
     token::{Token, TokenKind},
@@ -92,17 +92,17 @@ pub trait LoxCallable {
 }
 
 pub struct LoxFunction {
-    pub declaration: Fun,
+    pub decl: FunDecl,
     pub closure: Environment,
 }
 
 impl LoxCallable for LoxFunction {
     fn call(&self, interpreter: &mut Interpreter, args: &[LoxValue]) -> CFResult<LoxValue> {
         let mut env = Environment::new_enclosed(&self.closure);
-        for (param, value) in self.declaration.params.iter().zip(args) {
+        for (param, value) in self.decl.params.iter().zip(args) {
             env.define(param.clone(), value.clone());
         }
-        match interpreter.eval_block(&self.declaration.body, env) {
+        match interpreter.eval_block(&self.decl.body, env) {
             Ok(()) => Ok(LoxValue::Nil),
             Err(ControlFlow::Return(value)) => Ok(value),
             Err(other) => Err(other),
@@ -110,7 +110,7 @@ impl LoxCallable for LoxFunction {
     }
 
     fn arity(&self) -> usize {
-        self.declaration.params.len()
+        self.decl.params.len()
     }
 }
 pub struct NativeFunction {

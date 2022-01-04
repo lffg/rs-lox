@@ -53,8 +53,8 @@ impl Interpreter {
     fn eval_stmt(&mut self, stmt: &Stmt) -> CFResult<()> {
         use StmtKind::*;
         match &stmt.kind {
-            Var(var) => self.eval_var_stmt(var),
-            Fun(fun) => self.eval_fun_stmt(fun),
+            VarDecl(var) => self.eval_var_stmt(var),
+            FunDecl(fun) => self.eval_fun_stmt(fun),
             If(if_stmt) => self.eval_if_stmt(if_stmt),
             While(while_stmt) => self.eval_while_stmt(while_stmt),
             Return(return_stmt) => self.eval_return_stmt(return_stmt),
@@ -65,7 +65,7 @@ impl Interpreter {
         }
     }
 
-    fn eval_var_stmt(&mut self, var: &stmt::Var) -> CFResult<()> {
+    fn eval_var_stmt(&mut self, var: &stmt::VarDecl) -> CFResult<()> {
         let value = match &var.init {
             Some(expr) => self.eval_expr(expr)?,
             None => LoxValue::Nil,
@@ -74,11 +74,11 @@ impl Interpreter {
         Ok(())
     }
 
-    fn eval_fun_stmt(&mut self, fun: &stmt::Fun) -> CFResult<()> {
+    fn eval_fun_stmt(&mut self, fun: &stmt::FunDecl) -> CFResult<()> {
         self.env.define(
             fun.name.clone(),
             LoxValue::Function(Rc::new(LoxFunction {
-                declaration: fun.clone(),
+                decl: fun.clone(),
                 closure: self.env.clone(),
             })),
         );

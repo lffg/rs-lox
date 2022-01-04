@@ -39,7 +39,7 @@ impl TreePrinter {
     fn print_stmt(&mut self, stmt: &stmt::Stmt) {
         use stmt::StmtKind::*;
         match &stmt.kind {
-            Var(var) => {
+            VarDecl(var) => {
                 self.emit("Var Decl");
                 self.nest(|s| {
                     s.emit(format!("Name = `{}`", var.name));
@@ -49,7 +49,7 @@ impl TreePrinter {
                     }
                 });
             }
-            Fun(fun) => {
+            FunDecl(fun) => {
                 self.emit("Fun Decl");
                 self.nest(|s| {
                     s.emit(format!("Name = `{}`", fun.name));

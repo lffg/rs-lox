@@ -163,7 +163,7 @@ impl Parser<'_> {
         let (body, body_span) = block_result?;
 
         Ok(Stmt {
-            kind: stmt::Fun { name, params, body }.into(),
+            kind: stmt::FunDecl { name, params, body }.into(),
             span: init_span.to(body_span),
         })
     }
@@ -180,7 +180,7 @@ impl Parser<'_> {
             .span;
 
         Ok(Stmt {
-            kind: stmt::Var { name, init }.into(),
+            kind: stmt::VarDecl { name, init }.into(),
             span: var_span.to(semicolon_span),
         })
     }

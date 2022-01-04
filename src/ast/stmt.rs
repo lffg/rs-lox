@@ -8,17 +8,17 @@ pub struct Stmt {
 
 make_ast_enum!(
     StmtKind,
-    [Var, Fun, If, While, Return, Print, Block, Expr, Dummy]
+    [VarDecl, FunDecl, If, While, Return, Print, Block, Expr, Dummy]
 );
 
 #[derive(Debug, Clone)]
-pub struct Var {
+pub struct VarDecl {
     pub name: LoxIdent,
     pub init: Option<expr::Expr>,
 }
 
 #[derive(Debug, Clone)]
-pub struct Fun {
+pub struct FunDecl {
     pub name: LoxIdent,
     pub params: Vec<LoxIdent>,
     pub body: Vec<Stmt>,
