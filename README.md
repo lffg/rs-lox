@@ -28,5 +28,4 @@ Welcome to rs-lox. Enter Ctrl+D or `:exit` to exit.
 
 #### TODO: 
 
-- Use `AsRef` @ `Parser::is`
 - `self.maybe_trailing_semicolon();`

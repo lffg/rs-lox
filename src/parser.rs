@@ -1,4 +1,4 @@
-use std::{iter::Peekable, mem};
+use std::{borrow::Borrow, iter::Peekable, mem};
 
 use crate::{
     ast::{
@@ -144,7 +144,7 @@ impl Parser<'_> {
             format!("Expected `)` after {} parameter list", kind),
             |this| {
                 let mut params = Vec::new();
-                if !this.is(&RightParen) {
+                if !this.is(RightParen) {
                     loop {
                         let param = this.consume_ident("Expected parameter name")?;
                         params.push(param);
@@ -360,7 +360,7 @@ impl Parser<'_> {
             })
         }
 
-        let value = (!self.is(&TokenKind::Semicolon))
+        let value = (!self.is(TokenKind::Semicolon))
             .then(|| self.parse_expr())
             .transpose()?;
 
@@ -393,7 +393,7 @@ impl Parser<'_> {
             "Expected block to be closed",
             |this| {
                 let mut stmts = Vec::new();
-                while !this.is(&TokenKind::RightBrace) && !this.is_at_end() {
+                while !this.is(TokenKind::RightBrace) && !this.is_at_end() {
                     stmts.push(this.parse_decl());
                 }
                 Ok(stmts)
@@ -537,7 +537,7 @@ impl Parser<'_> {
         let mut expr = self.parse_primary()?;
 
         loop {
-            if !self.is(&LeftParen) {
+            if !self.is(LeftParen) {
                 break;
             }
 
@@ -547,7 +547,7 @@ impl Parser<'_> {
                 "Expected `)` to close call syntax",
                 |this| {
                     let mut args = Vec::new();
-                    if !this.is(&RightParen) {
+                    if !this.is(RightParen) {
                         loop {
                             args.push(this.parse_expr()?);
                             if !this.take(Comma) {
@@ -652,14 +652,14 @@ impl<'src> Parser<'src> {
 
     /// Checks if the current token matches the kind of the given one.
     #[inline]
-    fn is(&mut self, expected: &TokenKind) -> bool {
-        mem::discriminant(&self.current_token.kind) == mem::discriminant(expected)
+    fn is(&mut self, expected: impl Borrow<TokenKind>) -> bool {
+        mem::discriminant(&self.current_token.kind) == mem::discriminant(expected.borrow())
     }
 
     /// Checks if the current token matches the kind of the given one. In such case advances and
     /// returns true. Otherwise returns false.
     fn take(&mut self, expected: TokenKind) -> bool {
-        let res = self.is(&expected);
+        let res = self.is(expected);
         if res {
             self.advance();
         }
