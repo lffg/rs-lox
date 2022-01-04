@@ -272,7 +272,7 @@ impl Interpreter {
 
     fn eval_assignment_expr(&mut self, assignment: &expr::Assignment) -> CFResult<LoxValue> {
         let value = self.eval_expr(&assignment.value)?;
-        Ok(self.env.assign(&assignment.name, value)?)
+        self.env.assign(&assignment.name, value)
     }
 }
 
