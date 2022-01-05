@@ -25,10 +25,6 @@ pub struct Interpreter {
 
 // The interpreter implementation.
 impl Interpreter {
-    pub fn new() -> Self {
-        Default::default()
-    }
-
     // Note that `CFResult` must not be exposed to the interpreter caller.
     // It is an implementation detail.
     pub fn interpret(&mut self, stmts: &[Stmt]) -> Result<(), RuntimeError> {
@@ -36,18 +32,6 @@ impl Interpreter {
             Ok(()) => Ok(()),
             Err(ControlFlow::Err(err)) => Err(err),
             Err(ControlFlow::Return(_)) => unreachable!(),
-        }
-    }
-
-    pub fn resolve_local(&mut self, ident: &LoxIdent, depth: usize) {
-        self.locals.insert(ident.id, depth);
-    }
-
-    pub fn lookup_variable(&self, ident: &LoxIdent) -> CFResult<LoxValue> {
-        if let Some(distance) = self.locals.get(&ident.id) {
-            Ok(self.env.read_at(*distance, ident))
-        } else {
-            Ok(self.globals.read(ident)?)
         }
     }
 
@@ -283,8 +267,8 @@ impl Interpreter {
     }
 }
 
-impl Default for Interpreter {
-    fn default() -> Self {
+impl Interpreter {
+    pub fn new() -> Self {
         let mut globals = Environment::new();
 
         def_native!(
@@ -301,6 +285,18 @@ impl Default for Interpreter {
             env: globals.clone(),
             globals,
             locals: HashMap::new(),
+        }
+    }
+
+    pub fn resolve_local(&mut self, ident: &LoxIdent, depth: usize) {
+        self.locals.insert(ident.id, depth);
+    }
+
+    pub fn lookup_variable(&self, ident: &LoxIdent) -> CFResult<LoxValue> {
+        if let Some(distance) = self.locals.get(&ident.id) {
+            Ok(self.env.read_at(*distance, ident))
+        } else {
+            Ok(self.globals.read(ident)?)
         }
     }
 }

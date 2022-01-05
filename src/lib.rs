@@ -1,3 +1,5 @@
+#![allow(clippy::new_without_default)]
+
 pub mod ast;
 pub mod data;
 pub mod interpreter;
