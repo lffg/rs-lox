@@ -6,11 +6,7 @@ use crate::{
         stmt::{self, Stmt},
     },
     data::{LoxIdent, LoxValue},
-    parser::{
-        error::ParseError,
-        scanner::Scanner,
-        state::{ParserContext, ParserOptions},
-    },
+    parser::{error::ParseError, scanner::Scanner, state::ParserOptions},
     span::Span,
     token::{Token, TokenKind},
 };
@@ -29,7 +25,6 @@ pub struct Parser<'src> {
     current_token: Token,
     prev_token: Token,
     diagnostics: Vec<ParseError>,
-    context: ParserContext,
     pub options: ParserOptions,
 }
 
@@ -154,11 +149,7 @@ impl Parser<'_> {
             },
         )?;
 
-        let prev = mem::replace(&mut self.context.within_fn, true);
-        let block_result = self.parse_block();
-        self.context.within_fn = prev;
-        let (body, body_span) = block_result?;
-
+        let (body, body_span) = self.parse_block()?;
         Ok(Stmt::new(
             init_span.to(body_span),
             stmt::FunDecl { name, params, body },
@@ -341,14 +332,7 @@ impl Parser<'_> {
     }
 
     fn parse_return_stmt(&mut self) -> PResult<Stmt> {
-        let return_token_span = self.consume(TokenKind::Return, S_MUST)?.span;
-
-        if !self.context.within_fn {
-            self.diagnostics.push(ParseError::Error {
-                message: "Illegal return statement".into(),
-                span: return_token_span,
-            })
-        }
+        let return_span = self.consume(TokenKind::Return, S_MUST)?.span;
 
         let value = (!self.is(TokenKind::Semicolon))
             .then(|| self.parse_expr())
@@ -359,8 +343,8 @@ impl Parser<'_> {
             .span;
 
         Ok(Stmt::new(
-            return_token_span.to(semicolon_span),
-            stmt::Return { value },
+            return_span.to(semicolon_span),
+            stmt::Return { value, return_span },
         ))
     }
 
@@ -598,7 +582,6 @@ impl<'src> Parser<'src> {
             current_token: Token::dummy(),
             prev_token: Token::dummy(),
             diagnostics: Vec::new(),
-            context: ParserContext::default(),
             options: ParserOptions::default(),
         };
         parser.advance(); // The first advancement.

@@ -1,4 +1,7 @@
-use std::collections::{hash_map::Entry, HashMap};
+use std::{
+    collections::{hash_map::Entry, HashMap},
+    mem,
+};
 
 use crate::{
     ast::{
@@ -13,6 +16,7 @@ use crate::{
 #[derive(Debug)]
 pub struct Resolver<'i> {
     interpreter: &'i mut Interpreter,
+    state: ResolverState,
     scopes: Vec<HashMap<String, BindingState>>,
     errors: Vec<ResolveError>,
 }
@@ -46,7 +50,7 @@ impl Resolver<'_> {
             FunDecl(fun) => {
                 self.declare(&fun.name);
                 self.define(&fun.name);
-                self.resolve_fn(fun);
+                self.resolve_function(fun, FunctionKind::Function);
             }
             If(if_stmt) => {
                 self.resolve_expr(&if_stmt.cond);
@@ -60,6 +64,9 @@ impl Resolver<'_> {
                 self.resolve_stmt(&while_stmt.body);
             }
             Return(return_stmt) => {
+                if self.state.function_kind == FunctionKind::None {
+                    self.error(return_stmt.return_span, "Illegal return statement");
+                }
                 if let Some(value) = &return_stmt.value {
                     self.resolve_expr(value);
                 }
@@ -117,6 +124,7 @@ impl<'i> Resolver<'i> {
     pub fn new(interpreter: &'i mut Interpreter) -> Resolver<'i> {
         Self {
             interpreter,
+            state: ResolverState::default(),
             scopes: Vec::new(),
             errors: Vec::new(),
         }
@@ -163,14 +171,16 @@ impl<'i> Resolver<'i> {
         }
     }
 
-    fn resolve_fn(&mut self, decl: &stmt::FunDecl) {
+    fn resolve_function(&mut self, decl: &stmt::FunDecl, kind: FunctionKind) {
+        let old = mem::replace(&mut self.state.function_kind, kind);
         self.scoped(|this| {
             for param in &decl.params {
                 this.declare(param);
                 this.define(param);
             }
             this.resolve_stmts(&decl.body);
-        })
+        });
+        self.state.function_kind = old;
     }
 
     fn scoped<I>(&mut self, inner: I)
@@ -186,6 +196,23 @@ impl<'i> Resolver<'i> {
     fn error(&mut self, span: Span, message: impl Into<String>) {
         let message = message.into();
         self.errors.push(ResolveError { span, message });
+    }
+}
+
+#[derive(Debug, Default)]
+struct ResolverState {
+    function_kind: FunctionKind,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+enum FunctionKind {
+    None,
+    Function,
+}
+
+impl Default for FunctionKind {
+    fn default() -> Self {
+        Self::None
     }
 }
 

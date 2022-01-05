@@ -54,6 +54,7 @@ pub struct While {
 
 #[derive(Debug, Clone)]
 pub struct Return {
+    pub return_span: Span,
     pub value: Option<expr::Expr>,
 }
 
