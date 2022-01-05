@@ -1,4 +1,5 @@
 use crate::{
+    ast::AstId,
     data::{LoxIdent, LoxValue},
     span::Span,
     token::{Token, TokenKind},
@@ -8,6 +9,17 @@ use crate::{
 pub struct Expr {
     pub kind: ExprKind,
     pub span: Span,
+    pub id: AstId,
+}
+
+impl Expr {
+    pub fn new(span: Span, kind: impl Into<ExprKind>) -> Self {
+        Self {
+            span,
+            kind: kind.into(),
+            id: AstId::new(),
+        }
+    }
 }
 
 make_ast_enum!(

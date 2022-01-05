@@ -1,9 +1,10 @@
-use std::{mem, rc::Rc};
+use std::{collections::HashMap, mem, rc::Rc};
 
 use crate::{
     ast::{
         expr::{self, Expr, ExprKind},
         stmt::{self, Stmt, StmtKind},
+        AstId,
     },
     data::{LoxFunction, LoxIdent, LoxValue, NativeFunction},
     interpreter::{control_flow::ControlFlow, environment::Environment, error::RuntimeError},
@@ -15,11 +16,10 @@ pub mod control_flow;
 pub mod environment;
 pub mod error;
 
-/// Control flow result
-pub type CFResult<T> = Result<T, ControlFlow<LoxValue, RuntimeError>>;
-
 #[derive(Debug)]
 pub struct Interpreter {
+    locals: HashMap<AstId, usize>,
+    globals: Environment,
     env: Environment,
 }
 
@@ -36,6 +36,18 @@ impl Interpreter {
             Ok(()) => Ok(()),
             Err(ControlFlow::Err(err)) => Err(err),
             Err(ControlFlow::Return(_)) => unreachable!(),
+        }
+    }
+
+    pub fn resolve_local(&mut self, ident: &LoxIdent, depth: usize) {
+        self.locals.insert(ident.id, depth);
+    }
+
+    pub fn lookup_variable(&self, ident: &LoxIdent) -> CFResult<LoxValue> {
+        if let Some(distance) = self.locals.get(&ident.id) {
+            Ok(self.env.read_at(*distance, ident))
+        } else {
+            Ok(self.globals.read(ident)?)
         }
     }
 
@@ -136,7 +148,7 @@ impl Interpreter {
         use ExprKind::*;
         match &expr.kind {
             Lit(lit) => self.eval_lit_expr(lit),
-            Var(var) => self.env.read(&var.name),
+            Var(var) => self.lookup_variable(&var.name),
             Group(group) => self.eval_group_expr(group),
             Call(call) => self.eval_call_expr(call, expr.span),
             Unary(unary) => self.eval_unary_expr(unary),
@@ -263,16 +275,20 @@ impl Interpreter {
 
     fn eval_assignment_expr(&mut self, assignment: &expr::Assignment) -> CFResult<LoxValue> {
         let value = self.eval_expr(&assignment.value)?;
-        self.env.assign(&assignment.name, value)
+        if let Some(distance) = self.locals.get(&assignment.name.id) {
+            Ok(self.env.assign_at(*distance, &assignment.name, value))
+        } else {
+            Ok(self.globals.assign(&assignment.name, value)?)
+        }
     }
 }
 
 impl Default for Interpreter {
     fn default() -> Self {
-        let mut global_env = Environment::new();
+        let mut globals = Environment::new();
 
         def_native!(
-            global_env.clock / 0,
+            globals.clock / 0,
             fn clock(_: &[LoxValue]) -> CFResult<LoxValue> {
                 use std::time::{SystemTime, UNIX_EPOCH};
                 let start = SystemTime::now();
@@ -281,13 +297,16 @@ impl Default for Interpreter {
             }
         );
 
-        Self { env: global_env }
+        Self {
+            env: globals.clone(),
+            globals,
+            locals: HashMap::new(),
+        }
     }
 }
 
-//
-// Some other utilities.
-//
+/// Control flow result
+pub type CFResult<T> = Result<T, ControlFlow<LoxValue, RuntimeError>>;
 
 /// Tries to convert a `LoxValue` to a Rust bool.
 ///   * Truthy lox values: all numbers (incl. 0), all strings (incl. "") and `true`.
@@ -357,8 +376,9 @@ use bin_comparison_operator;
 macro_rules! def_native {
     ($globals:ident . $name:ident / $arity:expr  , $fn:item) => {
         $fn
+        let id = AstId::new();
         $globals.define(
-            LoxIdent { name: stringify!($name).into(), span: Span::new(0, 0) },
+            LoxIdent { name: stringify!($name).into(), span: Span::new(0, 0), id },
             LoxValue::Function(Rc::new(NativeFunction { fn_ptr: $name, arity: $arity })),
         );
     };

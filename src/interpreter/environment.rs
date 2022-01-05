@@ -2,12 +2,12 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::{
     data::{LoxIdent, LoxValue},
-    interpreter::{error::RuntimeError, CFResult},
+    interpreter::error::RuntimeError,
 };
 
 #[derive(Debug, Default)]
 struct EnvironmentInner {
-    enclosing: Option<Rc<RefCell<EnvironmentInner>>>,
+    enclosing: Option<Environment>,
     locals: HashMap<String, LoxValue>,
 }
 
@@ -26,7 +26,7 @@ impl Environment {
     pub fn new_enclosed(enclosing: &Environment) -> Self {
         Self {
             inner: Rc::new(RefCell::new(EnvironmentInner {
-                enclosing: Some(Rc::clone(&enclosing.inner)),
+                enclosing: Some(enclosing.clone()),
                 locals: HashMap::new(),
             })),
         }
@@ -37,36 +37,68 @@ impl Environment {
         self.inner.borrow_mut().locals.insert(ident.name, value);
     }
 
-    /// Assigns a variable. Returns `None` in case of undefined variable error.
-    pub fn assign(&mut self, ident: &LoxIdent, value: LoxValue) -> CFResult<LoxValue> {
-        let mut maybe_inner = Some(self.inner.clone()); // this clone is cheap (Rc)
-        while let Some(inner) = maybe_inner {
-            let mut inner = inner.borrow_mut();
-            if let Some(value_ref) = inner.locals.get_mut(&ident.name) {
-                *value_ref = value.clone();
-                return Ok(value);
+    /// Assigns a variable.
+    pub fn assign(&mut self, ident: &LoxIdent, value: LoxValue) -> Result<LoxValue, RuntimeError> {
+        let mut inner = self.inner.borrow_mut();
+        match inner.locals.get_mut(&ident.name) {
+            Some(var) => {
+                *var = value.clone();
+                Ok(value)
             }
-            maybe_inner = inner.enclosing.clone(); // this clone is cheap (Rc)
+            None => match &mut inner.enclosing {
+                Some(enclosing) => enclosing.assign(ident, value),
+                None => Err(RuntimeError::UndefinedVariable {
+                    ident: ident.clone(),
+                }),
+            },
         }
-        Err(RuntimeError::UndefinedVariable {
-            ident: ident.clone(),
-        }
-        .into())
     }
 
-    /// Reads a variable. Returns `None` in case of undefined variable error.
-    pub fn read(&self, ident: &LoxIdent) -> CFResult<LoxValue> {
-        let mut maybe_inner = Some(self.inner.clone()); // this clone is cheap (Rc)
-        while let Some(inner) = maybe_inner {
-            let inner = inner.borrow();
-            if let Some(value) = inner.locals.get(&ident.name) {
-                return Ok(value.clone());
-            }
-            maybe_inner = inner.enclosing.clone(); // this clone is cheap (Rc)
+    /// Reads a variable in a distant scope.
+    pub fn assign_at(&mut self, distance: usize, ident: &LoxIdent, value: LoxValue) -> LoxValue {
+        // This should never panic due to the semantic verifications that the resolver performs.
+        *self
+            .ancestor(distance)
+            .inner
+            .borrow_mut()
+            .locals
+            .get_mut(&ident.name)
+            .unwrap() = value.clone();
+        value
+    }
+
+    /// Reads a variable.
+    pub fn read(&self, ident: &LoxIdent) -> Result<LoxValue, RuntimeError> {
+        let inner = self.inner.borrow();
+        match inner.locals.get(&ident.name) {
+            Some(var) => Ok(var.clone()),
+            None => match &inner.enclosing {
+                Some(enclosing) => enclosing.read(ident),
+                None => Err(RuntimeError::UndefinedVariable {
+                    ident: ident.clone(),
+                }),
+            },
         }
-        Err(RuntimeError::UndefinedVariable {
-            ident: ident.clone(),
+    }
+
+    /// Reads a variable in a distant scope.
+    pub fn read_at(&self, distance: usize, ident: &LoxIdent) -> LoxValue {
+        // This should never panic due to the semantic verifications that the resolver performs.
+        self.ancestor(distance)
+            .inner
+            .borrow()
+            .locals
+            .get(&ident.name)
+            .unwrap()
+            .clone()
+    }
+
+    fn ancestor(&self, distance: usize) -> Environment {
+        let mut curr = self.clone();
+        for _ in 0..distance {
+            let maybe_enclosing = curr.inner.borrow().enclosing.clone();
+            curr = maybe_enclosing.unwrap();
         }
-        .into())
+        curr
     }
 }

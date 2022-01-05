@@ -4,7 +4,7 @@ use std::{
     ops::Range,
 };
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Default)]
 /// Represents a string fragment. The bounds are over its byte representation.
 pub struct Span {
     /// Lower bound.

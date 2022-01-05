@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::{
-    ast::stmt::FunDecl,
+    ast::{stmt::FunDecl, AstId},
     interpreter::{control_flow::ControlFlow, environment::Environment, CFResult, Interpreter},
     span::Span,
     token::{Token, TokenKind},
@@ -66,12 +66,16 @@ impl Debug for LoxValue {
 pub struct LoxIdent {
     pub name: String,
     pub span: Span,
+    pub id: AstId,
 }
 
 impl From<Token> for LoxIdent {
     fn from(Token { kind, span }: Token) -> Self {
         match kind {
-            TokenKind::Identifier(name) => LoxIdent { name, span },
+            TokenKind::Identifier(name) => {
+                let id = AstId::new();
+                LoxIdent { name, span, id }
+            }
             unexpected => unreachable!(
                 "Invalid `Token` ({:?}) to `LoxIdent` conversion.",
                 unexpected
