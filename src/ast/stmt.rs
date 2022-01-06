@@ -23,7 +23,7 @@ impl Stmt {
 
 make_ast_enum!(
     StmtKind,
-    [VarDecl, FunDecl, If, While, Return, Print, Block, Expr, Dummy]
+    [VarDecl, ClassDecl, FunDecl, If, While, Return, Print, Block, Expr, Dummy]
 );
 
 #[derive(Debug, Clone)]
@@ -33,10 +33,18 @@ pub struct VarDecl {
 }
 
 #[derive(Debug, Clone)]
+pub struct ClassDecl {
+    pub name: LoxIdent,
+    pub methods: Vec<FunDecl>,
+}
+
+#[derive(Debug, Clone)]
 pub struct FunDecl {
     pub name: LoxIdent,
     pub params: Vec<LoxIdent>,
     pub body: Vec<Stmt>,
+    /// Span of the function parameters and body. Must NOT include, for example, the `fun` token.
+    pub span: Span,
 }
 
 #[derive(Debug, Clone)]

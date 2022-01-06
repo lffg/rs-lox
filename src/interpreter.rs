@@ -6,7 +6,7 @@ use crate::{
         stmt::{self, Stmt, StmtKind},
         AstId,
     },
-    data::{LoxFunction, LoxIdent, LoxValue, NativeFunction},
+    data::{LoxClass, LoxFunction, LoxIdent, LoxInstance, LoxValue, NativeFunction},
     interpreter::{control_flow::ControlFlow, environment::Environment, error::RuntimeError},
     span::Span,
     token::TokenKind,
@@ -50,6 +50,7 @@ impl Interpreter {
         use StmtKind::*;
         match &stmt.kind {
             VarDecl(var) => self.eval_var_stmt(var),
+            ClassDecl(class) => self.eval_class_stmt(class),
             FunDecl(fun) => self.eval_fun_stmt(fun),
             If(if_stmt) => self.eval_if_stmt(if_stmt),
             While(while_stmt) => self.eval_while_stmt(while_stmt),
@@ -67,6 +68,16 @@ impl Interpreter {
             None => LoxValue::Nil,
         };
         self.env.define(var.name.clone(), value);
+        Ok(())
+    }
+
+    fn eval_class_stmt(&mut self, class: &stmt::ClassDecl) -> CFResult<()> {
+        self.env.define(
+            class.name.clone(),
+            LoxValue::Function(Rc::new(LoxClass {
+                name: class.name.clone(),
+            })),
+        );
         Ok(())
     }
 
@@ -134,6 +145,8 @@ impl Interpreter {
             Lit(lit) => self.eval_lit_expr(lit),
             Var(var) => self.lookup_variable(&var.name),
             Group(group) => self.eval_group_expr(group),
+            Get(get) => self.eval_get_expr(get),
+            Set(set) => self.eval_set_expr(set),
             Call(call) => self.eval_call_expr(call, expr.span),
             Unary(unary) => self.eval_unary_expr(unary),
             Binary(binary) => self.eval_binary_expr(binary),
@@ -148,6 +161,20 @@ impl Interpreter {
 
     fn eval_group_expr(&mut self, group: &expr::Group) -> CFResult<LoxValue> {
         self.eval_expr(&group.expr)
+    }
+
+    fn eval_get_expr(&mut self, get: &expr::Get) -> CFResult<LoxValue> {
+        let maybe_object = self.eval_expr(&get.object)?;
+        let instance = Self::ensure_object(maybe_object, get.name.span)?;
+        Ok(instance.get(&get.name)?)
+    }
+
+    fn eval_set_expr(&mut self, set: &expr::Set) -> CFResult<LoxValue> {
+        let maybe_object = self.eval_expr(&set.object)?;
+        let instance = Self::ensure_object(maybe_object, set.name.span)?;
+        let value = self.eval_expr(&set.value)?;
+        instance.set(&set.name, value.clone());
+        Ok(value)
     }
 
     fn eval_call_expr(&mut self, call: &expr::Call, span: Span) -> CFResult<LoxValue> {
@@ -292,11 +319,23 @@ impl Interpreter {
         self.locals.insert(ident.id, depth);
     }
 
-    pub fn lookup_variable(&self, ident: &LoxIdent) -> CFResult<LoxValue> {
+    fn lookup_variable(&self, ident: &LoxIdent) -> CFResult<LoxValue> {
         if let Some(distance) = self.locals.get(&ident.id) {
             Ok(self.env.read_at(*distance, ident))
         } else {
             Ok(self.globals.read(ident)?)
+        }
+    }
+
+    fn ensure_object(value: LoxValue, error_span: Span) -> CFResult<Rc<LoxInstance>> {
+        if let LoxValue::Object(instance) = value {
+            Ok(instance)
+        } else {
+            Err(RuntimeError::UnsupportedType {
+                message: "Only objects (instances of some class) have properties".into(),
+                span: error_span,
+            }
+            .into())
         }
     }
 }
@@ -311,7 +350,7 @@ fn lox_is_truthy(value: &LoxValue) -> bool {
     use LoxValue::*;
     match value {
         Boolean(inner) => *inner,
-        Function(_) | Number(_) | String(_) => true,
+        Function(_) | Object(_) | Number(_) | String(_) => true,
         Nil => false,
     }
 }
@@ -320,10 +359,17 @@ fn lox_is_truthy(value: &LoxValue) -> bool {
 fn lox_is_equal(a: &LoxValue, b: &LoxValue) -> bool {
     use LoxValue::*;
     match (a, b) {
+        (Function(a), Function(b)) =>
+        {
+            #[allow(clippy::vtable_address_comparisons)]
+            Rc::ptr_eq(a, b)
+        }
+        (Object(a), Object(b)) => Rc::ptr_eq(a, b),
         (Boolean(a), Boolean(b)) => a == b,
         (Number(a), Number(b)) => a == b,
         (String(a), String(b)) => a == b,
         (Nil, Nil) => true,
+        // This is not exhaustive, pay close attention if a new `LoxValue` variant is introduced.
         _ => false,
     }
 }
@@ -373,9 +419,14 @@ macro_rules! def_native {
     ($globals:ident . $name:ident / $arity:expr  , $fn:item) => {
         $fn
         let id = AstId::new();
+        let name: &'static str = stringify!($name);
         $globals.define(
-            LoxIdent { name: stringify!($name).into(), span: Span::new(0, 0), id },
-            LoxValue::Function(Rc::new(NativeFunction { fn_ptr: $name, arity: $arity })),
+            LoxIdent { name: name.into(), span: Span::new(0, 0), id },
+            LoxValue::Function(Rc::new(NativeFunction {
+                name,
+                fn_ptr: $name,
+                arity: $arity
+            })),
         );
     };
 }

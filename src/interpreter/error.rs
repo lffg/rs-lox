@@ -10,6 +10,7 @@ pub enum RuntimeError {
     UnsupportedType { message: String, span: Span },
 
     UndefinedVariable { ident: LoxIdent },
+    UndefinedProperty { ident: LoxIdent },
 
     ZeroDivision { span: Span },
 }
@@ -30,6 +31,14 @@ impl Display for RuntimeError {
                 )
             }
 
+            UndefinedProperty { ident } => {
+                write!(
+                    f,
+                    "Undefined property `{}` at position {}",
+                    ident.name, ident.span
+                )
+            }
+
             ZeroDivision { span } => {
                 write!(f, "Can not divide by zero; at position {}", span)
             }
@@ -43,7 +52,7 @@ impl RuntimeError {
         use RuntimeError::*;
         match self {
             UnsupportedType { span, .. } | ZeroDivision { span } => *span,
-            UndefinedVariable { ident } => ident.span,
+            UndefinedVariable { ident } | UndefinedProperty { ident } => ident.span,
         }
     }
 }

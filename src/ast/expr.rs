@@ -24,7 +24,7 @@ impl Expr {
 
 make_ast_enum!(
     ExprKind,
-    [Lit, Var, Group, Call, Unary, Binary, Logical, Assignment]
+    [Lit, Var, Group, Get, Set, Call, Unary, Binary, Logical, Assignment]
 );
 
 #[derive(Debug, Clone)]
@@ -40,6 +40,19 @@ pub struct Var {
 #[derive(Debug, Clone)]
 pub struct Group {
     pub expr: Box<Expr>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Get {
+    pub object: Box<Expr>,
+    pub name: LoxIdent,
+}
+
+#[derive(Debug, Clone)]
+pub struct Set {
+    pub object: Box<Expr>,
+    pub name: LoxIdent,
+    pub value: Box<Expr>,
 }
 
 #[derive(Debug, Clone)]

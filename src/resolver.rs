@@ -47,6 +47,10 @@ impl Resolver<'_> {
                 }
                 self.define(&var.name);
             }
+            ClassDecl(class) => {
+                self.declare(&class.name);
+                self.define(&class.name);
+            }
             FunDecl(fun) => {
                 self.declare(&fun.name);
                 self.define(&fun.name);
@@ -97,6 +101,18 @@ impl Resolver<'_> {
                 self.resolve_binding(&var.name);
             }
             Group(group) => self.resolve_expr(&group.expr),
+            Get(get) => {
+                // Since properties are looked up dynamically by the interpreter (in a similar
+                // manner to how global variables are handled), the resolver don't need to touch
+                // their names.
+                self.resolve_expr(&get.object);
+            }
+            Set(set) => {
+                // Like get, the resolver doesn't need to resolve the set property name since it is
+                // dynamically looked up by the interpreter.
+                self.resolve_expr(&set.object);
+                self.resolve_expr(&set.value);
+            }
             Call(call) => {
                 self.resolve_expr(&call.callee);
                 for arg in &call.args {

@@ -41,9 +41,10 @@ pub struct Parser<'src> {
 //                 | stmt ;
 //
 // var_decl      ::= "var" IDENTIFIER ( "=" expr )? ";" ;
+// class_decl    ::= "class" IDENTIFIER "{" fn* "}" ;
 // fun_decl      ::= "fun" fn ;
 //
-// fn            ::= IDENTIFIER "(" params? ")" ;
+// fn            ::= IDENTIFIER "(" params? ")" block_stmt ;
 // params        ::= IDENTIFIER ( "," IDENTIFIER )* ;
 //
 // stmt          ::= if_stmt
@@ -65,7 +66,7 @@ pub struct Parser<'src> {
 // expr_stmt     ::= expr ";" ;
 //
 // expr          ::= assignment ;
-// assignment    ::= IDENTIFIER "=" expr
+// assignment    ::= ( call_or_get "." )? IDENTIFIER "=" assignment
 //                 | logic_or ;
 // logic_or      ::= logic_and ( "or" logic_and )* ;
 // logic_and     ::= equality ( "and" equality )* ;
@@ -74,8 +75,8 @@ pub struct Parser<'src> {
 // term          ::= factor ( ( "+" | "-" ) factor )* ;
 // factor        ::= unary ( ( "*" | "/" ) unary )* ;
 // unary         ::= ( "show" | "typeof" | "!" | "-" ) unary
-//                 | call ;
-// call          ::= primary ( "(" arguments? ")" )* ;
+//                 | call_or_get ;
+// call_or_get ::= primary ( "(" arguments? ")" | "." IDENTIFIER )* ;
 // arguments     ::= expr ( "," expr )* ;
 // primary       ::= IDENTIFIER
 //                 | NUMBER | STRING
@@ -107,10 +108,8 @@ impl Parser<'_> {
         use TokenKind::*;
         let result = match self.current_token.kind {
             Var => self.parse_var_decl(),
-            Fun => {
-                let fun_span = self.advance().span;
-                self.parse_helper_fn("function", fun_span)
-            }
+            Class => self.parse_class_decl(),
+            Fun => self.parse_fun_decl(),
             _ => self.parse_stmt(),
         };
 
@@ -125,9 +124,57 @@ impl Parser<'_> {
         }
     }
 
-    fn parse_helper_fn(&mut self, kind: &'static str, init_span: Span) -> PResult<Stmt> {
+    fn parse_var_decl(&mut self) -> PResult<Stmt> {
         use TokenKind::*;
+        let var_span = self.consume(Var, S_MUST)?.span;
 
+        let name = self.consume_ident("Expected variable name")?;
+        let init = self.take(Equal).then(|| self.parse_expr()).transpose()?;
+
+        let semicolon_span = self
+            .consume(Semicolon, "Expected `;` after variable declaration")?
+            .span;
+
+        Ok(Stmt::new(
+            var_span.to(semicolon_span),
+            stmt::VarDecl { name, init },
+        ))
+    }
+
+    fn parse_class_decl(&mut self) -> PResult<Stmt> {
+        use TokenKind::*;
+        let class_span = self.consume(Class, S_MUST)?.span;
+
+        let name = self.consume_ident("Expected class name")?;
+
+        let (methods, class_body_span) = self.paired_spanned(
+            LeftBrace,
+            "Expected `{` before class body",
+            "Expected `}` after class body",
+            |this| {
+                let mut methods = Vec::new();
+                while !this.is(RightBrace) && !this.is_at_end() {
+                    methods.push(this.parse_fn_params_and_body("method")?);
+                }
+                Ok(methods)
+            },
+        )?;
+
+        Ok(Stmt::new(
+            class_span.to(class_body_span),
+            stmt::ClassDecl { name, methods },
+        ))
+    }
+
+    fn parse_fun_decl(&mut self) -> PResult<Stmt> {
+        use TokenKind::*;
+        let fun_span = self.consume(Fun, S_MUST)?.span;
+        let fun = self.parse_fn_params_and_body("function")?;
+        Ok(Stmt::new(fun_span.to(fun.span), fun))
+    }
+
+    fn parse_fn_params_and_body(&mut self, kind: &'static str) -> PResult<stmt::FunDecl> {
+        use TokenKind::*;
         let name = self.consume_ident(format!("Expected {} name", kind))?;
 
         let params = self.paired(
@@ -150,27 +197,12 @@ impl Parser<'_> {
         )?;
 
         let (body, body_span) = self.parse_block()?;
-        Ok(Stmt::new(
-            init_span.to(body_span),
-            stmt::FunDecl { name, params, body },
-        ))
-    }
-
-    fn parse_var_decl(&mut self) -> PResult<Stmt> {
-        use TokenKind::*;
-        let var_span = self.consume(Var, S_MUST)?.span;
-
-        let name = self.consume_ident("Expected variable name")?;
-        let init = self.take(Equal).then(|| self.parse_expr()).transpose()?;
-
-        let semicolon_span = self
-            .consume(Semicolon, "Expected `;` after variable declaration")?
-            .span;
-
-        Ok(Stmt::new(
-            var_span.to(semicolon_span),
-            stmt::VarDecl { name, init },
-        ))
+        Ok(stmt::FunDecl {
+            span: name.span.to(body_span),
+            name,
+            params,
+            body,
+        })
     }
 
     //
@@ -411,25 +443,33 @@ impl Parser<'_> {
             // The right-most assignment value should be evaluated first (down in the parse tree),
             // so it should be parsed last. This semantic can be coded with this kind of recursion.
             let value = self.parse_assignment()?;
+            let span = left.span.to(value.span);
 
-            // Now the parser knows that `left` must be an lvalue.
-            if let ExprKind::Var(expr::Var { name }) = left.kind {
-                return Ok(Expr::new(
-                    left.span.to(value.span),
+            // Now the parser knows that `left` must be an lvalue, otherwise it is an error.
+            match left.kind {
+                ExprKind::Var(expr::Var { name }) => Ok(Expr::new(
+                    span,
                     expr::Assignment {
                         name,
                         value: value.into(),
                     },
-                ));
+                )),
+                ExprKind::Get(expr::Get { name, object }) => Ok(Expr::new(
+                    span,
+                    expr::Set {
+                        object,
+                        name,
+                        value: value.into(),
+                    },
+                )),
+                _ => Err(ParseError::Error {
+                    message: "Invalid assignment target".into(),
+                    span: left.span,
+                }),
             }
-
-            return Err(ParseError::Error {
-                message: "Invalid assignment target".into(),
-                span: left.span,
-            });
+        } else {
+            Ok(left)
         }
-
-        Ok(left)
     }
 
     fn parse_or(&mut self) -> PResult<Expr> {
@@ -499,53 +539,64 @@ impl Parser<'_> {
                 },
             ));
         }
-        self.parse_call()
+        self.parse_call_or_get()
     }
 
-    fn parse_call(&mut self) -> PResult<Expr> {
+    fn parse_call_or_get(&mut self) -> PResult<Expr> {
         use TokenKind::*;
         let mut expr = self.parse_primary()?;
 
         loop {
-            if !self.is(LeftParen) {
-                break;
-            }
-
-            let (args, call_span) = self.paired_spanned(
-                LeftParen,
-                S_MUST,
-                "Expected `)` to close call syntax",
-                |this| {
-                    let mut args = Vec::new();
-                    if !this.is(RightParen) {
-                        loop {
-                            args.push(this.parse_expr()?);
-                            if !this.take(Comma) {
-                                break;
-                            }
-                        }
-                    }
-                    Ok(args)
-                },
-            )?;
-
-            if args.len() >= 255 {
-                self.diagnostics.push(ParseError::Error {
-                    message: "Call can't have more than 255 arguments".into(),
-                    span: call_span,
-                })
-            }
-
-            expr = Expr::new(
-                expr.span.to(call_span),
-                expr::Call {
-                    callee: expr.into(),
-                    args,
-                },
-            );
+            expr = match self.current_token.kind {
+                LeftParen => self.finish_call_parsing(expr)?,
+                Dot => {
+                    self.advance(); // Consumes the `.`
+                    let name = self.consume_ident("Expect property name after `.`")?;
+                    let span = expr.span.to(name.span);
+                    let object = expr.into();
+                    Expr::new(span, expr::Get { object, name })
+                }
+                _ => break,
+            };
         }
 
         Ok(expr)
+    }
+
+    fn finish_call_parsing(&mut self, curr_expr: Expr) -> PResult<Expr> {
+        use TokenKind::*;
+        let (args, call_span) = self.paired_spanned(
+            LeftParen,
+            S_MUST,
+            "Expected `)` to close call syntax",
+            |this| {
+                let mut args = Vec::new();
+                if !this.is(RightParen) {
+                    loop {
+                        args.push(this.parse_expr()?);
+                        if !this.take(Comma) {
+                            break;
+                        }
+                    }
+                }
+                Ok(args)
+            },
+        )?;
+
+        if args.len() >= 255 {
+            self.diagnostics.push(ParseError::Error {
+                message: "Call can't have more than 255 arguments".into(),
+                span: call_span,
+            })
+        }
+
+        Ok(Expr::new(
+            curr_expr.span.to(call_span),
+            expr::Call {
+                callee: curr_expr.into(),
+                args,
+            },
+        ))
     }
 
     fn parse_primary(&mut self) -> PResult<Expr> {

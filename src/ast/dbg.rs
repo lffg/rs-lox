@@ -49,20 +49,19 @@ impl TreePrinter {
                     }
                 });
             }
-            FunDecl(fun) => {
-                self.emit("Fun Decl");
+            ClassDecl(class) => {
+                self.emit("Class Decl");
                 self.nest(|s| {
-                    s.emit(format!("Name = `{}`", fun.name));
-                    s.emit(format!("Params ({})", fun.params.len()));
+                    s.emit(format!("Name = `{}`", class.name));
+                    s.emit("Methods");
                     s.nest(|s| {
-                        for param in &fun.params {
-                            s.emit(&param.name);
+                        for method in &class.methods {
+                            s.print_fun(method, "Class Method");
                         }
                     });
-                    s.emit("Body");
-                    s.nest(|s| s.print_stmts(&fun.body));
                 });
             }
+            FunDecl(fun) => self.print_fun(fun, "Fun Stmt"),
             If(if_stmt) => {
                 self.emit("If Stmt");
                 self.nest(|s| {
@@ -126,6 +125,24 @@ impl TreePrinter {
                     s.print_expr(&group.expr);
                 });
             }
+            Get(get) => {
+                self.emit("Get");
+                self.nest(|s| {
+                    s.emit(format!("Property: `{}`", get.name));
+                    s.emit("From Object");
+                    s.nest(|s| s.print_expr(&get.object));
+                });
+            }
+            Set(set) => {
+                self.emit("Set");
+                self.nest(|s| {
+                    s.emit(format!("Target property: `{}`", set.name));
+                    s.emit("From Object");
+                    s.nest(|s| s.print_expr(&set.object));
+                    s.emit("With Value");
+                    s.nest(|s| s.print_expr(&set.value));
+                });
+            }
             Call(call) => {
                 self.emit("Call");
                 self.nest(|s| {
@@ -159,12 +176,27 @@ impl TreePrinter {
             Assignment(assignment) => {
                 self.emit("Assignment");
                 self.nest(|s| {
-                    s.emit(format!("Target `{}`", assignment.name));
-                    s.emit("Value");
+                    s.emit(format!("Target: `{}`", assignment.name));
+                    s.emit("With Value");
                     s.nest(|s| s.print_expr(&assignment.value));
                 });
             }
         }
+    }
+
+    fn print_fun(&mut self, fun: &stmt::FunDecl, label: &'static str) {
+        self.emit(label);
+        self.nest(|s| {
+            s.emit(format!("Name = `{}`", fun.name));
+            s.emit(format!("Params ({})", fun.params.len()));
+            s.nest(|s| {
+                for param in &fun.params {
+                    s.emit(&param.name);
+                }
+            });
+            s.emit("Body");
+            s.nest(|s| s.print_stmts(&fun.body));
+        });
     }
 
     fn new(prefix: &'static str) -> Self {
