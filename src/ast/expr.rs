@@ -24,12 +24,17 @@ impl Expr {
 
 make_ast_enum!(
     ExprKind,
-    [Lit, Var, Group, Get, Set, Call, Unary, Binary, Logical, Assignment]
+    [Lit, This, Var, Group, Get, Set, Call, Unary, Binary, Logical, Assignment]
 );
 
 #[derive(Debug, Clone)]
 pub struct Lit {
     pub value: LoxValue,
+}
+
+#[derive(Debug, Clone)]
+pub struct This {
+    pub name: LoxIdent,
 }
 
 #[derive(Debug, Clone)]

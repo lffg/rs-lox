@@ -116,6 +116,9 @@ impl TreePrinter {
             Lit(expr::Lit { value, .. }) => {
                 self.emit(format!("Literal ({:?} :: {})", value, value.type_name()));
             }
+            This(_) => {
+                self.emit("This");
+            }
             Var(var) => {
                 self.emit(format!("Var `{}`", var.name));
             }

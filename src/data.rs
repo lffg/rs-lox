@@ -77,13 +77,20 @@ pub struct LoxIdent {
     pub id: AstId,
 }
 
+impl LoxIdent {
+    pub fn new(span: Span, name: impl Into<String>) -> Self {
+        LoxIdent {
+            id: AstId::new(),
+            name: name.into(),
+            span,
+        }
+    }
+}
+
 impl From<Token> for LoxIdent {
     fn from(Token { kind, span }: Token) -> Self {
         match kind {
-            TokenKind::Identifier(name) => {
-                let id = AstId::new();
-                LoxIdent { name, span, id }
-            }
+            TokenKind::Identifier(name) => LoxIdent::new(span, name),
             unexpected => unreachable!(
                 "Invalid `Token` ({:?}) to `LoxIdent` conversion.",
                 unexpected
@@ -104,10 +111,24 @@ pub trait LoxCallable: Display + Debug {
     fn arity(&self) -> usize;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LoxFunction {
-    pub decl: FunDecl,
+    pub decl: Rc<FunDecl>,
     pub closure: Environment,
+}
+
+impl LoxFunction {
+    pub fn bind(self: Rc<Self>, instance: Rc<LoxInstance>) -> Rc<Self> {
+        let mut env = Environment::new_enclosed(&self.closure);
+        env.define(
+            LoxIdent::new(Span::new(0, 0), "this"),
+            LoxValue::Object(instance),
+        );
+        Rc::new(LoxFunction {
+            decl: self.decl.clone(),
+            closure: env,
+        })
+    }
 }
 
 impl LoxCallable for LoxFunction {
@@ -173,6 +194,7 @@ impl Debug for NativeFunction {
 #[derive(Debug, Clone)]
 pub struct LoxClass {
     pub name: LoxIdent,
+    pub methods: HashMap<String, Rc<LoxFunction>>,
 }
 
 impl LoxCallable for LoxClass {
@@ -202,13 +224,18 @@ pub struct LoxInstance {
 }
 
 impl LoxInstance {
-    pub fn get(&self, ident: &LoxIdent) -> Result<LoxValue, RuntimeError> {
-        match self.properties.borrow().get(&ident.name) {
-            Some(value) => Ok(value.clone()),
-            None => Err(RuntimeError::UndefinedProperty {
-                ident: ident.clone(),
-            }),
+    pub fn get(self: Rc<Self>, ident: &LoxIdent) -> Result<LoxValue, RuntimeError> {
+        if let Some(value) = self.properties.borrow().get(&ident.name) {
+            return Ok(value.clone());
         }
+
+        if let Some(method) = self.constructor.methods.get(&ident.name) {
+            return Ok(LoxValue::Function(method.clone().bind(self)));
+        }
+
+        Err(RuntimeError::UndefinedProperty {
+            ident: ident.clone(),
+        })
     }
 
     pub fn set(&self, ident: &LoxIdent, value: LoxValue) {

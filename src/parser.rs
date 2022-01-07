@@ -606,6 +606,15 @@ impl Parser<'_> {
                 let token = self.advance();
                 Ok(Expr::new(token.span, expr::Lit::from(token.clone())))
             }
+            This => {
+                let span = self.advance().span;
+                Ok(Expr::new(
+                    span,
+                    expr::This {
+                        name: LoxIdent::new(span, "this"),
+                    },
+                ))
+            }
             Identifier(_) => {
                 let name = self.consume_ident(S_MUST)?;
                 Ok(Expr::new(name.span, expr::Var { name }))

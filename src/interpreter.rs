@@ -72,10 +72,25 @@ impl Interpreter {
     }
 
     fn eval_class_stmt(&mut self, class: &stmt::ClassDecl) -> CFResult<()> {
+        let methods = class
+            .methods
+            .iter()
+            .cloned()
+            .map(|decl| {
+                (
+                    decl.name.name.clone(),
+                    Rc::new(LoxFunction {
+                        decl: Rc::new(decl),
+                        closure: self.env.clone(),
+                    }),
+                )
+            })
+            .collect();
         self.env.define(
             class.name.clone(),
             LoxValue::Function(Rc::new(LoxClass {
                 name: class.name.clone(),
+                methods,
             })),
         );
         Ok(())
@@ -85,7 +100,7 @@ impl Interpreter {
         self.env.define(
             fun.name.clone(),
             LoxValue::Function(Rc::new(LoxFunction {
-                decl: fun.clone(),
+                decl: Rc::new(fun.clone()),
                 closure: self.env.clone(),
             })),
         );
@@ -143,6 +158,7 @@ impl Interpreter {
         use ExprKind::*;
         match &expr.kind {
             Lit(lit) => self.eval_lit_expr(lit),
+            This(this) => self.lookup_variable(&this.name),
             Var(var) => self.lookup_variable(&var.name),
             Group(group) => self.eval_group_expr(group),
             Get(get) => self.eval_get_expr(get),

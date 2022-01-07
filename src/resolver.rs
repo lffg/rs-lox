@@ -48,13 +48,27 @@ impl Resolver<'_> {
                 self.define(&var.name);
             }
             ClassDecl(class) => {
+                let old_class_state = mem::replace(&mut self.state.class, ClassState::Class);
+
                 self.declare(&class.name);
                 self.define(&class.name);
+
+                self.scoped(|this| {
+                    let this_ident = LoxIdent::new(Span::new(0, 0), "this");
+                    this.declare(&this_ident);
+                    this.define(&this_ident);
+
+                    for method in &class.methods {
+                        this.resolve_function(method, FunctionState::Method);
+                    }
+                });
+
+                self.state.class = old_class_state;
             }
             FunDecl(fun) => {
                 self.declare(&fun.name);
                 self.define(&fun.name);
-                self.resolve_function(fun, FunctionKind::Function);
+                self.resolve_function(fun, FunctionState::Function);
             }
             If(if_stmt) => {
                 self.resolve_expr(&if_stmt.cond);
@@ -68,7 +82,7 @@ impl Resolver<'_> {
                 self.resolve_stmt(&while_stmt.body);
             }
             Return(return_stmt) => {
-                if self.state.function_kind == FunctionKind::None {
+                if self.state.function == FunctionState::None {
                     self.error(return_stmt.return_span, "Illegal return statement");
                 }
                 if let Some(value) = &return_stmt.value {
@@ -90,6 +104,15 @@ impl Resolver<'_> {
         use ExprKind::*;
         match &expr.kind {
             Lit(_) => (),
+            This(this) => {
+                if self.state.class != ClassState::Class {
+                    self.error(
+                        expr.span,
+                        "Illegal this expression, can't use this outside of a class",
+                    );
+                }
+                self.resolve_binding(&this.name)
+            }
             Var(var) => {
                 if self.query(&var.name, BindingState::Declared) {
                     self.error(
@@ -187,8 +210,9 @@ impl<'i> Resolver<'i> {
         }
     }
 
-    fn resolve_function(&mut self, decl: &stmt::FunDecl, kind: FunctionKind) {
-        let old = mem::replace(&mut self.state.function_kind, kind);
+    fn resolve_function(&mut self, decl: &stmt::FunDecl, kind: FunctionState) {
+        let old_function_state = mem::replace(&mut self.state.function, kind);
+
         self.scoped(|this| {
             for param in &decl.params {
                 this.declare(param);
@@ -196,7 +220,8 @@ impl<'i> Resolver<'i> {
             }
             this.resolve_stmts(&decl.body);
         });
-        self.state.function_kind = old;
+
+        self.state.function = old_function_state;
     }
 
     fn scoped<I>(&mut self, inner: I)
@@ -217,20 +242,36 @@ impl<'i> Resolver<'i> {
 
 #[derive(Debug, Default)]
 struct ResolverState {
-    function_kind: FunctionKind,
+    function: FunctionState,
+    class: ClassState,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-enum FunctionKind {
+enum FunctionState {
     None,
+    Method,
     Function,
 }
 
-impl Default for FunctionKind {
-    fn default() -> Self {
-        Self::None
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+enum ClassState {
+    None,
+    Class,
+}
+
+macro_rules! impl_default_for_state {
+    ($($name:ident),+) => {
+        $(
+            impl Default for $name {
+                fn default() -> Self {
+                    Self::None
+                }
+            }
+        )+
     }
 }
+
+impl_default_for_state!(FunctionState, ClassState);
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 enum BindingState {
