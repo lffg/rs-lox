@@ -4,7 +4,7 @@ use crate::{
     ast,
     interpreter::Interpreter,
     parser::{error::ParseError, Parser},
-    user::handle_parser_outcome,
+    user::{handle_parser_outcome, run_file},
 };
 
 pub struct Repl {
@@ -104,6 +104,15 @@ impl Repl {
             "exit" => self.done = true,
             "ast" | "tree" => handle_bool_opt!(self.show_ast),
             "lex" => handle_bool_opt!(self.show_lex),
+            "load" => match run_file(cmd[1], Some(&mut self.interpreter)) {
+                Ok(status) => {
+                    if status {
+                        println!("ok");
+                    }
+                }
+                Err(error) => eprintln!("{}", error),
+            },
+
             "help" => eprintln!(":exit | :lex | :ast | :help"),
             _ => eprintln!("Invalid command. Type `:help` for guidance."),
         }

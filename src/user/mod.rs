@@ -14,7 +14,7 @@ fn handle_parser_outcome(
     src: &str,
     (stmts, errors): &ParserOutcome,
     interpreter: &mut Interpreter,
-) {
+) -> bool {
     let writer = &mut io::stderr();
 
     // parser
@@ -23,7 +23,7 @@ fn handle_parser_outcome(
             eprintln!("{}\n", error);
             print_span_window(writer, src, error.primary_span());
         }
-        return;
+        return false;
     }
 
     // resolver
@@ -34,19 +34,25 @@ fn handle_parser_outcome(
             eprintln!("{}; at position {}\n", error.message, error.span);
             print_span_window(writer, src, error.span);
         }
-        return;
+        return false;
     }
 
     // interpreter
     if let Err(error) = interpreter.interpret(stmts) {
         eprintln!("{}\n", error);
         print_span_window(writer, src, error.primary_span());
+        return false;
     }
+    true
 }
 
-pub fn run_file(file: impl AsRef<Path>) -> io::Result<()> {
+pub fn run_file(file: impl AsRef<Path>, interpreter: Option<&mut Interpreter>) -> io::Result<bool> {
     let src = &fs::read_to_string(file)?;
     let outcome = Parser::new(src).parse();
-    handle_parser_outcome(src, &outcome, &mut Interpreter::new());
-    Ok(())
+    let status = handle_parser_outcome(
+        src,
+        &outcome,
+        interpreter.unwrap_or(&mut Interpreter::new()),
+    );
+    Ok(status)
 }
