@@ -99,6 +99,12 @@ impl From<Token> for LoxIdent {
     }
 }
 
+impl AsRef<str> for LoxIdent {
+    fn as_ref(&self) -> &str {
+        &self.name
+    }
+}
+
 impl Display for LoxIdent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.name)
@@ -115,18 +121,20 @@ pub trait LoxCallable: Display + Debug {
 pub struct LoxFunction {
     pub decl: Rc<FunDecl>,
     pub closure: Environment,
+    pub is_class_init: bool,
 }
 
 impl LoxFunction {
-    pub fn bind(self: Rc<Self>, instance: Rc<LoxInstance>) -> Rc<Self> {
+    pub fn bind(&self, instance: &Rc<LoxInstance>) -> Rc<Self> {
         let mut env = Environment::new_enclosed(&self.closure);
         env.define(
             LoxIdent::new(Span::new(0, 0), "this"),
-            LoxValue::Object(instance),
+            LoxValue::Object(instance.clone()),
         );
         Rc::new(LoxFunction {
             decl: self.decl.clone(),
             closure: env,
+            is_class_init: self.is_class_init,
         })
     }
 }
@@ -141,10 +149,20 @@ impl LoxCallable for LoxFunction {
         for (param, value) in self.decl.params.iter().zip(args) {
             env.define(param.clone(), value.clone());
         }
-        match interpreter.eval_block(&self.decl.body, env) {
-            Ok(()) => Ok(LoxValue::Nil),
-            Err(ControlFlow::Return(value)) => Ok(value),
-            Err(other) => Err(other),
+        let real_returned_value = match interpreter.eval_block(&self.decl.body, env) {
+            Ok(()) => LoxValue::Nil,
+            Err(ControlFlow::Return(value)) => value,
+            Err(other) => return Err(other),
+        };
+        // If the function being currently executed happens to be the initializer (i.e. "init") of
+        // some class, the returned value should be simply ignored, since it always returns the
+        // instance's `this` value implicitly by this implementation (it's a Lox design choice).
+        //
+        // Note that if an error arises from the initializer it is not ignored.
+        if self.is_class_init {
+            Ok(self.closure.read_at(0, "this"))
+        } else {
+            Ok(real_returned_value)
         }
     }
 
@@ -197,17 +215,35 @@ pub struct LoxClass {
     pub methods: HashMap<String, Rc<LoxFunction>>,
 }
 
+impl LoxClass {
+    pub fn get_method(&self, ident: impl AsRef<str>) -> Option<Rc<LoxFunction>> {
+        self.methods.get(ident.as_ref()).cloned()
+    }
+}
+
+// Class instantiation.
 impl LoxCallable for LoxClass {
-    fn call(self: Rc<Self>, _: &mut Interpreter, _: &[LoxValue]) -> CFResult<LoxValue> {
-        let instance = LoxInstance {
+    fn call(
+        self: Rc<Self>,
+        interpreter: &mut Interpreter,
+        args: &[LoxValue],
+    ) -> CFResult<LoxValue> {
+        let instance = Rc::new(LoxInstance {
             constructor: self,
             properties: RefCell::new(HashMap::new()),
-        };
-        Ok(LoxValue::Object(Rc::new(instance)))
+        });
+        // Run the class' initializer if it's defined.
+        if let Some(init) = instance.get_bound_method("init") {
+            init.call(interpreter, args)?;
+        }
+        Ok(LoxValue::Object(instance))
     }
 
     fn arity(&self) -> usize {
-        0
+        match self.get_method("init") {
+            Some(function) => function.arity(),
+            None => 0,
+        }
     }
 }
 
@@ -224,13 +260,13 @@ pub struct LoxInstance {
 }
 
 impl LoxInstance {
-    pub fn get(self: Rc<Self>, ident: &LoxIdent) -> Result<LoxValue, RuntimeError> {
+    pub fn get(self: &Rc<Self>, ident: &LoxIdent) -> Result<LoxValue, RuntimeError> {
         if let Some(value) = self.properties.borrow().get(&ident.name) {
             return Ok(value.clone());
         }
 
-        if let Some(method) = self.constructor.methods.get(&ident.name) {
-            return Ok(LoxValue::Function(method.clone().bind(self)));
+        if let Some(method) = self.get_bound_method(ident) {
+            return Ok(LoxValue::Function(method));
         }
 
         Err(RuntimeError::UndefinedProperty {
@@ -243,6 +279,12 @@ impl LoxInstance {
             .borrow_mut()
             .insert(ident.name.clone(), value);
     }
+
+    pub fn get_bound_method(self: &Rc<Self>, ident: impl AsRef<str>) -> Option<Rc<LoxFunction>> {
+        self.constructor
+            .get_method(ident)
+            .map(|unbound| unbound.bind(self))
+    }
 }
 
 impl Display for LoxInstance {
@@ -252,7 +294,7 @@ impl Display for LoxInstance {
             if i == 0 {
                 writeln!(f)?;
             }
-            writeln!(f, "  {}: {}", key, val)?;
+            writeln!(f, "  {}: {:?}", key, val)?;
         }
         write!(f, "}}>")?;
         Ok(())

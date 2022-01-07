@@ -80,6 +80,7 @@ impl Interpreter {
                 (
                     decl.name.name.clone(),
                     Rc::new(LoxFunction {
+                        is_class_init: decl.name.name == "init",
                         decl: Rc::new(decl),
                         closure: self.env.clone(),
                     }),
@@ -102,6 +103,7 @@ impl Interpreter {
             LoxValue::Function(Rc::new(LoxFunction {
                 decl: Rc::new(fun.clone()),
                 closure: self.env.clone(),
+                is_class_init: false,
             })),
         );
         Ok(())

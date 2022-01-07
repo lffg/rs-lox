@@ -82,13 +82,13 @@ impl Environment {
     }
 
     /// Reads a variable in a distant scope.
-    pub fn read_at(&self, distance: usize, ident: &LoxIdent) -> LoxValue {
+    pub fn read_at(&self, distance: usize, ident: impl AsRef<str>) -> LoxValue {
         // This should never panic due to the semantic verifications that the resolver performs.
         self.ancestor(distance)
             .inner
             .borrow()
             .locals
-            .get(&ident.name)
+            .get(ident.as_ref())
             .unwrap()
             .clone()
     }

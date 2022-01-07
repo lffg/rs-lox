@@ -59,7 +59,12 @@ impl Resolver<'_> {
                     this.define(&this_ident);
 
                     for method in &class.methods {
-                        this.resolve_function(method, FunctionState::Method);
+                        let state = if method.name.name == "init" {
+                            FunctionState::Init
+                        } else {
+                            FunctionState::Method
+                        };
+                        this.resolve_function(method, state);
                     }
                 });
 
@@ -86,6 +91,12 @@ impl Resolver<'_> {
                     self.error(return_stmt.return_span, "Illegal return statement");
                 }
                 if let Some(value) = &return_stmt.value {
+                    if self.state.function == FunctionState::Init {
+                        self.error(
+                            return_stmt.return_span,
+                            "Can't return value from class initializer",
+                        );
+                    }
                     self.resolve_expr(value);
                 }
             }
@@ -210,8 +221,8 @@ impl<'i> Resolver<'i> {
         }
     }
 
-    fn resolve_function(&mut self, decl: &stmt::FunDecl, kind: FunctionState) {
-        let old_function_state = mem::replace(&mut self.state.function, kind);
+    fn resolve_function(&mut self, decl: &stmt::FunDecl, state: FunctionState) {
+        let old_function_state = mem::replace(&mut self.state.function, state);
 
         self.scoped(|this| {
             for param in &decl.params {
@@ -249,7 +260,8 @@ struct ResolverState {
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 enum FunctionState {
     None,
-    Method,
+    Init,   // Class init
+    Method, // Class method
     Function,
 }
 
