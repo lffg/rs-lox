@@ -54,10 +54,7 @@ impl Resolver<'_> {
                 self.define(&class.name);
 
                 self.scoped(|this| {
-                    let this_ident = LoxIdent::new(Span::new(0, 0), "this");
-                    this.declare(&this_ident);
-                    this.define(&this_ident);
-
+                    this.initialize("this");
                     for method in &class.methods {
                         let state = if method.name.name == "init" {
                             FunctionState::Init
@@ -206,6 +203,13 @@ impl<'i> Resolver<'i> {
                 }
             }
         }
+    }
+
+    fn initialize(&mut self, ident: impl Into<String>) {
+        self.scopes
+            .last_mut()
+            .unwrap()
+            .insert(ident.into(), BindingState::Initialized);
     }
 
     fn query(&mut self, ident: &LoxIdent, expected: BindingState) -> bool {

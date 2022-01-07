@@ -33,8 +33,8 @@ impl Environment {
     }
 
     /// Defines a variable in the innermost scope.
-    pub fn define(&mut self, ident: LoxIdent, value: LoxValue) {
-        self.inner.borrow_mut().locals.insert(ident.name, value);
+    pub fn define(&mut self, ident: impl Into<String>, value: LoxValue) {
+        self.inner.borrow_mut().locals.insert(ident.into(), value);
     }
 
     /// Assigns a variable.

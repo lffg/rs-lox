@@ -105,6 +105,12 @@ impl AsRef<str> for LoxIdent {
     }
 }
 
+impl Into<String> for LoxIdent {
+    fn into(self) -> String {
+        self.name
+    }
+}
+
 impl Display for LoxIdent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.name)
@@ -127,10 +133,7 @@ pub struct LoxFunction {
 impl LoxFunction {
     pub fn bind(&self, instance: &Rc<LoxInstance>) -> Rc<Self> {
         let mut env = Environment::new_enclosed(&self.closure);
-        env.define(
-            LoxIdent::new(Span::new(0, 0), "this"),
-            LoxValue::Object(instance.clone()),
-        );
+        env.define("this", LoxValue::Object(instance.clone()));
         Rc::new(LoxFunction {
             decl: self.decl.clone(),
             closure: env,
