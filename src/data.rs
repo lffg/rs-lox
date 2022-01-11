@@ -18,6 +18,7 @@ use crate::{
 #[derive(Clone)]
 pub enum LoxValue {
     Function(Rc<dyn LoxCallable>),
+    Class(Rc<LoxClass>),
     Object(Rc<LoxInstance>),
     Boolean(bool),
     Number(f64),
@@ -31,6 +32,7 @@ impl LoxValue {
         use LoxValue::*;
         match self {
             Function(_) => "function",
+            Class(_) => "class",
             Object(_) => "object",
             Boolean(_) => "boolean",
             Number(_) => "number",
@@ -45,6 +47,7 @@ impl Display for LoxValue {
         use LoxValue::*;
         match self {
             Function(fun) => Display::fmt(fun, f),
+            Class(class) => Display::fmt(class, f),
             Object(instance) => Display::fmt(instance, f),
             Boolean(boolean) => Display::fmt(boolean, f),
             Number(number) => {
@@ -105,6 +108,7 @@ impl AsRef<str> for LoxIdent {
     }
 }
 
+#[allow(clippy::from_over_into)]
 impl Into<String> for LoxIdent {
     fn into(self) -> String {
         self.name
@@ -216,11 +220,15 @@ impl Debug for NativeFunction {
 pub struct LoxClass {
     pub name: LoxIdent,
     pub methods: HashMap<String, Rc<LoxFunction>>,
+    pub super_class: Option<Rc<LoxClass>>,
 }
 
 impl LoxClass {
     pub fn get_method(&self, ident: impl AsRef<str>) -> Option<Rc<LoxFunction>> {
-        self.methods.get(ident.as_ref()).cloned()
+        self.methods
+            .get(ident.as_ref())
+            .cloned()
+            .or_else(|| self.super_class.as_ref().and_then(|s| s.get_method(ident)))
     }
 }
 

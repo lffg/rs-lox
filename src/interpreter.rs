@@ -72,6 +72,21 @@ impl Interpreter {
     }
 
     fn eval_class_stmt(&mut self, class: &stmt::ClassDecl) -> CFResult<()> {
+        let super_class = class
+            .super_name
+            .as_ref()
+            .map(|name| {
+                let maybe_class = self.lookup_variable(name)?;
+                if let LoxValue::Class(class) = maybe_class {
+                    Ok(class)
+                } else {
+                    Err(ControlFlow::from(RuntimeError::UnsupportedType {
+                        message: "Superclass must be a class".into(),
+                        span: name.span,
+                    }))
+                }
+            })
+            .transpose()?;
         let methods = class
             .methods
             .iter()
@@ -89,9 +104,10 @@ impl Interpreter {
             .collect();
         self.env.define(
             class.name.clone(),
-            LoxValue::Function(Rc::new(LoxClass {
+            LoxValue::Class(Rc::new(LoxClass {
                 name: class.name.clone(),
                 methods,
+                super_class,
             })),
         );
         Ok(())
@@ -204,26 +220,32 @@ impl Interpreter {
             .map(|expr| self.eval_expr(expr))
             .collect::<Result<Vec<_>, _>>()?;
 
-        match callee {
-            Function(callable) if callable.arity() == args.len() => callable.call(self, &args),
-            Function(callable) => Err(RuntimeError::UnsupportedType {
+        let callable = match callee {
+            Function(callable) => callable,
+            Class(class) => class,
+            _ => {
+                return Err(ControlFlow::from(RuntimeError::UnsupportedType {
+                    message: format!(
+                        "Type `{}` is not callable, can only call functions and classes",
+                        callee.type_name()
+                    ),
+                    span,
+                }))
+            }
+        };
+
+        if callable.arity() != args.len() {
+            return Err(ControlFlow::from(RuntimeError::UnsupportedType {
                 message: format!(
                     "Expected {} arguments, but got {}",
                     callable.arity(),
                     args.len()
                 ),
                 span,
-            }
-            .into()),
-            _ => Err(RuntimeError::UnsupportedType {
-                message: format!(
-                    "Type `{}` is not callable, can only call functions and classes",
-                    callee.type_name()
-                ),
-                span,
-            }
-            .into()),
+            }));
         }
+
+        callable.call(self, &args)
     }
 
     fn eval_unary_expr(&mut self, unary: &expr::Unary) -> CFResult<LoxValue> {
@@ -368,7 +390,7 @@ fn lox_is_truthy(value: &LoxValue) -> bool {
     use LoxValue::*;
     match value {
         Boolean(inner) => *inner,
-        Function(_) | Object(_) | Number(_) | String(_) => true,
+        Function(_) | Class(_) | Object(_) | Number(_) | String(_) => true,
         Nil => false,
     }
 }
@@ -382,6 +404,7 @@ fn lox_is_equal(a: &LoxValue, b: &LoxValue) -> bool {
             #[allow(clippy::vtable_address_comparisons)]
             Rc::ptr_eq(a, b)
         }
+        (Class(a), Class(b)) => Rc::ptr_eq(a, b),
         (Object(a), Object(b)) => Rc::ptr_eq(a, b),
         (Boolean(a), Boolean(b)) => a == b,
         (Number(a), Number(b)) => a == b,

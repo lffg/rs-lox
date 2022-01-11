@@ -53,6 +53,9 @@ impl TreePrinter {
                 self.emit("Class Decl");
                 self.nest(|s| {
                     s.emit(format!("Name = `{}`", class.name));
+                    if let Some(super_name) = &class.super_name {
+                        s.emit(format!("Extending `{}`", super_name));
+                    }
                     s.emit("Methods");
                     s.nest(|s| {
                         for method in &class.methods {

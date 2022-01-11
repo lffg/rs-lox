@@ -53,6 +53,15 @@ impl Resolver<'_> {
                 self.declare(&class.name);
                 self.define(&class.name);
 
+                if let Some(super_name) = &class.super_name {
+                    if class.name.name == super_name.name {
+                        self.error(super_name.span, "Class can't inherit itself");
+                    } else {
+                        // ok
+                        self.resolve_binding(super_name);
+                    }
+                }
+
                 self.scoped(|this| {
                     this.initialize("this");
                     for method in &class.methods {

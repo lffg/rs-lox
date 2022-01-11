@@ -35,6 +35,7 @@ pub struct VarDecl {
 #[derive(Debug, Clone)]
 pub struct ClassDecl {
     pub name: LoxIdent,
+    pub super_name: Option<LoxIdent>,
     pub methods: Vec<FunDecl>,
 }
 

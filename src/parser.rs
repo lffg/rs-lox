@@ -41,7 +41,7 @@ pub struct Parser<'src> {
 //                 | stmt ;
 //
 // var_decl      ::= "var" IDENTIFIER ( "=" expr )? ";" ;
-// class_decl    ::= "class" IDENTIFIER "{" fn* "}" ;
+// class_decl    ::= "class" IDENTIFIER ( "<" IDENTIFIER )? "{" fn* "}" ;
 // fun_decl      ::= "fun" fn ;
 //
 // fn            ::= IDENTIFIER "(" params? ")" block_stmt ;
@@ -147,6 +147,11 @@ impl Parser<'_> {
 
         let name = self.consume_ident("Expected class name")?;
 
+        let super_name = self
+            .take(Less)
+            .then(|| self.consume_ident("Expected superclass name"))
+            .transpose()?;
+
         let (methods, class_body_span) = self.paired_spanned(
             LeftBrace,
             "Expected `{` before class body",
@@ -162,7 +167,11 @@ impl Parser<'_> {
 
         Ok(Stmt::new(
             class_span.to(class_body_span),
-            stmt::ClassDecl { name, methods },
+            stmt::ClassDecl {
+                name,
+                super_name,
+                methods,
+            },
         ))
     }
 
