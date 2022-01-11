@@ -1,0 +1,20 @@
+class Person {
+  init(name) {
+    if (!name) {
+      print "Must provide a name.";
+      return;
+    }
+    this.name = name;
+  }
+
+  greet(other) {
+    print "Hello, " + other.name + "! My name is " + this.name + ", nice to meet you. :)";
+  }
+}
+
+var john = Person("John Doe");
+var jane = Person("Jane Janot");
+
+var john_greeter = john.greet;
+john_greeter(jane);
+jane.greet(john);

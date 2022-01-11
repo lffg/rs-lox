@@ -1,0 +1,14 @@
+fun loop(until, stop) {
+  for (var i = 0; i <= until; i = i + 1) {
+    print "before if: " + show i;
+    if (i == stop) {
+      return stop;
+    }
+    print "after if: " + show i; 
+  }
+  print "after for";
+}
+
+print "call output (1): " + show loop(3, 4);
+print "---";
+print "call output (2): " + show loop(3, 2);
