@@ -1,5 +1,4 @@
 use crate::{
-    ast::AstId,
     data::{LoxIdent, LoxValue},
     span::Span,
     token::{Token, TokenKind},
@@ -9,7 +8,6 @@ use crate::{
 pub struct Expr {
     pub kind: ExprKind,
     pub span: Span,
-    pub id: AstId,
 }
 
 impl Expr {
@@ -17,7 +15,6 @@ impl Expr {
         Self {
             span,
             kind: kind.into(),
-            id: AstId::new(),
         }
     }
 }

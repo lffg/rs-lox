@@ -3,10 +3,11 @@ use std::{
     collections::HashMap,
     fmt::{self, Debug, Display},
     rc::Rc,
+    sync::atomic::{self, AtomicUsize},
 };
 
 use crate::{
-    ast::{stmt::FunDecl, AstId},
+    ast::stmt::FunDecl,
     interpreter::{
         control_flow::ControlFlow, environment::Environment, error::RuntimeError, CFResult,
         Interpreter,
@@ -91,15 +92,27 @@ impl Debug for LoxValue {
 
 #[derive(Debug, Clone)]
 pub struct LoxIdent {
+    pub id: LoxIdentId,
     pub name: String,
     pub span: Span,
-    pub id: AstId,
+}
+
+// Yep, global state:
+static LOX_IDENT_ID_SEQ: AtomicUsize = AtomicUsize::new(0);
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub struct LoxIdentId(usize);
+
+impl LoxIdentId {
+    pub fn new() -> Self {
+        LoxIdentId(LOX_IDENT_ID_SEQ.fetch_add(1, atomic::Ordering::SeqCst))
+    }
 }
 
 impl LoxIdent {
     pub fn new(span: Span, name: impl Into<String>) -> Self {
         LoxIdent {
-            id: AstId::new(),
+            id: LoxIdentId::new(),
             name: name.into(),
             span,
         }

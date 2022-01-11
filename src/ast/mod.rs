@@ -1,5 +1,3 @@
-use std::sync::atomic::{self, AtomicUsize};
-
 macro_rules! make_ast_enum {
     ( $enum_name:ident, [ $( $variant:ident ),* $( , )? ] ) => {
         #[derive(Debug, Clone)]
@@ -25,15 +23,3 @@ macro_rules! make_ast_enum {
 pub mod dbg;
 pub mod expr;
 pub mod stmt;
-
-// Yep, global state:
-static AST_ID_SEQ: AtomicUsize = AtomicUsize::new(0);
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct AstId(usize);
-
-impl AstId {
-    pub fn new() -> Self {
-        AstId(AST_ID_SEQ.fetch_add(1, atomic::Ordering::SeqCst))
-    }
-}

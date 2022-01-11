@@ -4,9 +4,8 @@ use crate::{
     ast::{
         expr::{self, Expr, ExprKind},
         stmt::{self, Stmt, StmtKind},
-        AstId,
     },
-    data::{LoxClass, LoxFunction, LoxIdent, LoxInstance, LoxValue, NativeFunction},
+    data::{LoxClass, LoxFunction, LoxIdent, LoxIdentId, LoxInstance, LoxValue, NativeFunction},
     interpreter::{control_flow::ControlFlow, environment::Environment, error::RuntimeError},
     span::Span,
     token::TokenKind,
@@ -18,7 +17,7 @@ pub mod error;
 
 #[derive(Debug)]
 pub struct Interpreter {
-    locals: HashMap<AstId, usize>,
+    locals: HashMap<LoxIdentId, usize>,
     globals: Environment,
     env: Environment,
 }
@@ -492,12 +491,10 @@ use bin_comparison_operator;
 macro_rules! def_native {
     ($globals:ident . $name:ident / $arity:expr  , $fn:item) => {
         $fn
-        let id = AstId::new();
-        let name: &'static str = stringify!($name);
         $globals.define(
-            LoxIdent { name: name.into(), span: Span::new(0, 0), id },
+            LoxIdent::new(Span::new(0, 0), stringify!($name)),
             LoxValue::Function(Rc::new(NativeFunction {
-                name,
+                name: stringify!($name),
                 fn_ptr: $name,
                 arity: $arity
             })),

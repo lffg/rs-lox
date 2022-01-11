@@ -1,14 +1,9 @@
-use crate::{
-    ast::{expr, AstId},
-    data::LoxIdent,
-    span::Span,
-};
+use crate::{ast::expr, data::LoxIdent, span::Span};
 
 #[derive(Debug, Clone)]
 pub struct Stmt {
     pub kind: StmtKind,
     pub span: Span,
-    pub id: AstId,
 }
 
 impl Stmt {
@@ -16,7 +11,6 @@ impl Stmt {
         Self {
             span,
             kind: kind.into(),
-            id: AstId::new(),
         }
     }
 }
