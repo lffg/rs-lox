@@ -56,7 +56,7 @@ impl Interpreter {
             While(while_stmt) => self.eval_while_stmt(while_stmt),
             Return(return_stmt) => self.eval_return_stmt(return_stmt),
             Print(print) => self.eval_print_stmt(print),
-            Block(block) => self.eval_block(&block.stmts, Environment::new_enclosed(&self.env)),
+            Block(block) => self.eval_block(&block.stmts, Environment::new_enclosing(&self.env)),
             Expr(expr) => self.eval_expr(&expr.expr).map(drop),
             Dummy(_) => unreachable!(),
         }
@@ -87,6 +87,12 @@ impl Interpreter {
                 }
             })
             .transpose()?;
+
+        if let Some(super_class) = super_class.clone() {
+            self.env = Environment::new_enclosing(&self.env);
+            self.env.define("super", LoxValue::Class(super_class));
+        }
+
         let methods = class
             .methods
             .iter()
@@ -102,6 +108,11 @@ impl Interpreter {
                 )
             })
             .collect();
+
+        if super_class.is_some() {
+            self.env = self.env.enclosed().unwrap();
+        }
+
         self.env.define(
             class.name.clone(),
             LoxValue::Class(Rc::new(LoxClass {
@@ -177,6 +188,7 @@ impl Interpreter {
         match &expr.kind {
             Lit(lit) => self.eval_lit_expr(lit),
             This(this) => self.lookup_variable(&this.name),
+            Super(sup) => self.eval_super_expr(sup),
             Var(var) => self.lookup_variable(&var.name),
             Group(group) => self.eval_group_expr(group),
             Get(get) => self.eval_get_expr(get),
@@ -195,6 +207,27 @@ impl Interpreter {
 
     fn eval_group_expr(&mut self, group: &expr::Group) -> CFResult<LoxValue> {
         self.eval_expr(&group.expr)
+    }
+
+    fn eval_super_expr(&mut self, sup: &expr::Super) -> CFResult<LoxValue> {
+        // This unwrap should never fail due to resolver's semantic verifications.
+        let distance = self.locals.get(&sup.super_ident.id).unwrap();
+
+        // This unwrap should never fail due to the fact that "super" should always be a `Class`.
+        let super_class = self.env.read_at(*distance, "super").as_class().unwrap();
+
+        // The environment where "this" is defined is always bound immediately inside the
+        // environment that defined "super" (the "this env" encloses the "super env").
+        //
+        // This unwrap should never fail due to the fact that "this" should always be an `Object`.
+        let this = self.env.read_at(distance - 1, "this").as_object().unwrap();
+
+        match super_class.get_method(&sup.method) {
+            Some(method) => Ok(LoxValue::Function(method.bind(&this))),
+            None => Err(ControlFlow::from(RuntimeError::UndefinedProperty {
+                ident: sup.method.clone(),
+            })),
+        }
     }
 
     fn eval_get_expr(&mut self, get: &expr::Get) -> CFResult<LoxValue> {

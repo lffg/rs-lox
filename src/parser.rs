@@ -82,7 +82,8 @@ pub struct Parser<'src> {
 //                 | NUMBER | STRING
 //                 | "true" | "false"
 //                 | "nil"
-//                 | "(" expr ")" ;
+//                 | "(" expr ")"
+//                 | "super" "." IDENTIFIER ;
 //
 // -----------------------------------------------------------------------------
 //
@@ -615,6 +616,10 @@ impl Parser<'_> {
                 let token = self.advance();
                 Ok(Expr::new(token.span, expr::Lit::from(token.clone())))
             }
+            Identifier(_) => {
+                let name = self.consume_ident(S_MUST)?;
+                Ok(Expr::new(name.span, expr::Var { name }))
+            }
             This => {
                 let span = self.advance().span;
                 Ok(Expr::new(
@@ -624,9 +629,17 @@ impl Parser<'_> {
                     },
                 ))
             }
-            Identifier(_) => {
-                let name = self.consume_ident(S_MUST)?;
-                Ok(Expr::new(name.span, expr::Var { name }))
+            Super => {
+                let super_span = self.advance().span;
+                self.consume(Dot, "Expected `.` after `super`")?;
+                let method = self.consume_ident("Expected superclass method name")?;
+                Ok(Expr::new(
+                    super_span.to(method.span),
+                    expr::Super {
+                        super_ident: LoxIdent::new(super_span, "super"),
+                        method,
+                    },
+                ))
             }
             LeftParen => {
                 let (expr, span) = self.paired_spanned(
@@ -764,8 +777,10 @@ impl<'src> Parser<'src> {
     /// Returns an `ParseError::UnexpectedToken`.
     #[inline(always)]
     fn unexpected(&self, message: impl Into<String>, expected: Option<TokenKind>) -> ParseError {
+        let message = message.into();
+        #[cfg(debug_assertions)]
         ParseError::UnexpectedToken {
-            message: message.into(),
+            message,
             expected,
             offending: self.current_token.clone(),
         }

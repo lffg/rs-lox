@@ -23,13 +23,18 @@ impl Environment {
     }
 
     /// Creates a new `Environment` enclosing the given `Environment`.
-    pub fn new_enclosed(enclosing: &Environment) -> Self {
+    pub fn new_enclosing(enclosing: &Environment) -> Self {
         Self {
             inner: Rc::new(RefCell::new(EnvironmentInner {
                 enclosing: Some(enclosing.clone()),
                 locals: HashMap::new(),
             })),
         }
+    }
+
+    /// Returns the enclosed environment.
+    pub fn enclosed(&self) -> Option<Environment> {
+        self.inner.borrow().enclosing.clone()
     }
 
     /// Defines a variable in the innermost scope.

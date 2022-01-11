@@ -122,6 +122,9 @@ impl TreePrinter {
             This(_) => {
                 self.emit("This");
             }
+            Super(_) => {
+                self.emit("Super");
+            }
             Var(var) => {
                 self.emit(format!("Var `{}`", var.name));
             }

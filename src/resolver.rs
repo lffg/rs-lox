@@ -56,10 +56,16 @@ impl Resolver<'_> {
                 if let Some(super_name) = &class.super_name {
                     if class.name.name == super_name.name {
                         self.error(super_name.span, "Class can't inherit itself");
-                    } else {
-                        // ok
-                        self.resolve_binding(super_name);
                     }
+
+                    self.state.class = ClassState::SubClass;
+
+                    self.resolve_binding(super_name);
+
+                    // If there is a super-class, we initialize a new scope and define `super` in
+                    // it so the current class may access it.
+                    self.begin_scope();
+                    self.initialize("super");
                 }
 
                 self.scoped(|this| {
@@ -73,6 +79,10 @@ impl Resolver<'_> {
                         this.resolve_function(method, state);
                     }
                 });
+
+                if class.super_name.is_some() {
+                    self.end_scope();
+                }
 
                 self.state.class = old_class_state;
             }
@@ -122,13 +132,28 @@ impl Resolver<'_> {
         match &expr.kind {
             Lit(_) => (),
             This(this) => {
-                if self.state.class != ClassState::Class {
+                if self.state.class == ClassState::None {
                     self.error(
                         expr.span,
                         "Illegal this expression, can't use this outside of a class",
                     );
                 }
                 self.resolve_binding(&this.name)
+            }
+            Super(sup) => {
+                if self.state.class == ClassState::None {
+                    self.error(
+                        sup.super_ident.span,
+                        "Illegal super expression, can't use super outside of a class",
+                    )
+                }
+                if self.state.class == ClassState::Class {
+                    self.error(
+                        sup.super_ident.span,
+                        "Illegal super expression, can't use super within a class with no superclass",
+                    )
+                }
+                self.resolve_binding(&sup.super_ident);
             }
             Var(var) => {
                 if self.query(&var.name, BindingState::Declared) {
@@ -248,13 +273,24 @@ impl<'i> Resolver<'i> {
         self.state.function = old_function_state;
     }
 
+    /// One should ideally use `scoped`. Callers of `begin_scope` must also call `end_scope`.
+    #[inline]
+    fn begin_scope(&mut self) {
+        self.scopes.push(HashMap::new());
+    }
+
+    #[inline]
+    fn end_scope(&mut self) {
+        self.scopes.pop();
+    }
+
     fn scoped<I>(&mut self, inner: I)
     where
         I: FnOnce(&mut Self),
     {
-        self.scopes.push(HashMap::new());
+        self.begin_scope();
         let res = inner(self);
-        self.scopes.pop();
+        self.end_scope();
         res
     }
 
@@ -282,6 +318,7 @@ enum FunctionState {
 enum ClassState {
     None,
     Class,
+    SubClass,
 }
 
 macro_rules! impl_default_for_state {

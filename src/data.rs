@@ -40,6 +40,22 @@ impl LoxValue {
             Nil => "nil",
         }
     }
+
+    /// Returns the `Rc<LoxClass>` pointer if the given `LoxValue` is a class. Otherwise None.
+    pub fn as_class(self) -> Option<Rc<LoxClass>> {
+        match self {
+            LoxValue::Class(inner) => Some(inner),
+            _ => None,
+        }
+    }
+
+    /// Returns the `Rc<LoxInstance>` pointer if the given `LoxValue` is a class. Otherwise None.
+    pub fn as_object(self) -> Option<Rc<LoxInstance>> {
+        match self {
+            LoxValue::Object(inner) => Some(inner),
+            _ => None,
+        }
+    }
 }
 
 impl Display for LoxValue {
@@ -136,7 +152,7 @@ pub struct LoxFunction {
 
 impl LoxFunction {
     pub fn bind(&self, instance: &Rc<LoxInstance>) -> Rc<Self> {
-        let mut env = Environment::new_enclosed(&self.closure);
+        let mut env = Environment::new_enclosing(&self.closure);
         env.define("this", LoxValue::Object(instance.clone()));
         Rc::new(LoxFunction {
             decl: self.decl.clone(),
@@ -152,7 +168,7 @@ impl LoxCallable for LoxFunction {
         interpreter: &mut Interpreter,
         args: &[LoxValue],
     ) -> CFResult<LoxValue> {
-        let mut env = Environment::new_enclosed(&self.closure);
+        let mut env = Environment::new_enclosing(&self.closure);
         for (param, value) in self.decl.params.iter().zip(args) {
             env.define(param.clone(), value.clone());
         }
