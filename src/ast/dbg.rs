@@ -1,5 +1,8 @@
 use crate::{
-    ast::{expr, stmt},
+    ast::{
+        expr::{self, Expr},
+        stmt::{self, Stmt},
+    },
     parser::scanner::Scanner,
 };
 
@@ -15,7 +18,7 @@ pub fn print_scanned_tokens(src: &str) {
 }
 
 /// Prints the given program tree.
-pub fn print_program_tree(stmts: &[stmt::Stmt]) {
+pub fn print_program_tree(stmts: &[Stmt]) {
     println!("┌─");
     TreePrinter::new("│ ").print_stmts(stmts);
     println!("└─");
@@ -27,7 +30,7 @@ struct TreePrinter {
 }
 
 impl TreePrinter {
-    fn print_stmts(&mut self, stmts: &[stmt::Stmt]) {
+    fn print_stmts(&mut self, stmts: &[Stmt]) {
         for (i, stmt) in stmts.iter().enumerate() {
             self.print_stmt(stmt);
             if i != stmts.len() - 1 {
@@ -36,9 +39,9 @@ impl TreePrinter {
         }
     }
 
-    fn print_stmt(&mut self, stmt: &stmt::Stmt) {
-        use stmt::StmtKind::*;
-        match &stmt.kind {
+    fn print_stmt(&mut self, stmt: &Stmt) {
+        use Stmt::*;
+        match &stmt {
             VarDecl(var) => {
                 self.emit("Var Decl");
                 self.nest(|s| {
@@ -113,9 +116,9 @@ impl TreePrinter {
         }
     }
 
-    fn print_expr(&mut self, expr: &expr::Expr) {
-        use expr::ExprKind::*;
-        match &expr.kind {
+    fn print_expr(&mut self, expr: &Expr) {
+        use Expr::*;
+        match &expr {
             Lit(expr::Lit { value, .. }) => {
                 self.emit(format!("Literal ({:?} :: {})", value, value.type_name()));
             }
@@ -174,8 +177,8 @@ impl TreePrinter {
                 });
             }
             #[rustfmt::skip]
-            Binary(expr::Binary { operator, left, right }) |
-            Logical(expr::Logical { operator, left, right }) => {
+            Binary(expr::Binary { operator, left, right, .. }) |
+            Logical(expr::Logical { operator, left, right, .. }) => {
                 self.emit(format!("Binary {}", operator));
                 self.nest(|s| {
                     s.print_expr(left);

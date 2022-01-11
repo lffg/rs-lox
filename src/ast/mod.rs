@@ -4,6 +4,17 @@ macro_rules! make_ast_enum {
         pub enum $enum_name {
             $( $variant($variant), )*
         }
+        impl $enum_name {
+            /// Returns the span of the inner AST node.
+            #[inline]
+            pub fn span(&self) -> Span {
+                match self {
+                    $(
+                        $enum_name::$variant(inner) => inner.span,
+                    )*
+                }
+            }
+        }
         $(
             impl From<$variant> for $enum_name {
                 fn from(val: $variant) -> $enum_name {

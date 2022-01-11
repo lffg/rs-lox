@@ -2,8 +2,8 @@ use std::{collections::HashMap, mem, rc::Rc};
 
 use crate::{
     ast::{
-        expr::{self, Expr, ExprKind},
-        stmt::{self, Stmt, StmtKind},
+        expr::{self, Expr},
+        stmt::{self, Stmt},
     },
     data::{LoxClass, LoxFunction, LoxIdent, LoxIdentId, LoxInstance, LoxValue, NativeFunction},
     interpreter::{control_flow::ControlFlow, environment::Environment, error::RuntimeError},
@@ -46,8 +46,8 @@ impl Interpreter {
     }
 
     fn eval_stmt(&mut self, stmt: &Stmt) -> CFResult<()> {
-        use StmtKind::*;
-        match &stmt.kind {
+        use Stmt::*;
+        match &stmt {
             VarDecl(var) => self.eval_var_stmt(var),
             ClassDecl(class) => self.eval_class_stmt(class),
             FunDecl(fun) => self.eval_fun_stmt(fun),
@@ -183,8 +183,8 @@ impl Interpreter {
     //
 
     fn eval_expr(&mut self, expr: &Expr) -> CFResult<LoxValue> {
-        use ExprKind::*;
-        match &expr.kind {
+        use Expr::*;
+        match &expr {
             Lit(lit) => self.eval_lit_expr(lit),
             This(this) => self.lookup_variable(&this.name),
             Super(sup) => self.eval_super_expr(sup),
@@ -192,7 +192,7 @@ impl Interpreter {
             Group(group) => self.eval_group_expr(group),
             Get(get) => self.eval_get_expr(get),
             Set(set) => self.eval_set_expr(set),
-            Call(call) => self.eval_call_expr(call, expr.span),
+            Call(call) => self.eval_call_expr(call),
             Unary(unary) => self.eval_unary_expr(unary),
             Binary(binary) => self.eval_binary_expr(binary),
             Logical(logical) => self.eval_logical_expr(logical),
@@ -243,7 +243,7 @@ impl Interpreter {
         Ok(value)
     }
 
-    fn eval_call_expr(&mut self, call: &expr::Call, span: Span) -> CFResult<LoxValue> {
+    fn eval_call_expr(&mut self, call: &expr::Call) -> CFResult<LoxValue> {
         use LoxValue::*;
         let callee = self.eval_expr(&call.callee)?;
         let args = call
@@ -261,7 +261,7 @@ impl Interpreter {
                         "Type `{}` is not callable, can only call functions and classes",
                         callee.type_name()
                     ),
-                    span,
+                    span: call.span,
                 }))
             }
         };
@@ -273,7 +273,7 @@ impl Interpreter {
                     callable.arity(),
                     args.len()
                 ),
-                span,
+                span: call.span,
             }));
         }
 

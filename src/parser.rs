@@ -2,7 +2,7 @@ use std::{borrow::Borrow, iter::Peekable, mem};
 
 use crate::{
     ast::{
-        expr::{self, Expr, ExprKind},
+        expr::{self, Expr},
         stmt::{self, Stmt},
     },
     data::{LoxIdent, LoxValue},
@@ -120,7 +120,9 @@ impl Parser<'_> {
                 self.diagnostics.push(error);
                 self.synchronize();
                 let lo = self.current_token.span.lo;
-                Stmt::new(Span::new(lo, lo), stmt::Dummy())
+                Stmt::from(stmt::Dummy {
+                    span: Span::new(lo, lo),
+                })
             }
         }
     }
@@ -136,10 +138,11 @@ impl Parser<'_> {
             .consume(Semicolon, "Expected `;` after variable declaration")?
             .span;
 
-        Ok(Stmt::new(
-            var_span.to(semicolon_span),
-            stmt::VarDecl { name, init },
-        ))
+        Ok(Stmt::from(stmt::VarDecl {
+            span: var_span.to(semicolon_span),
+            name,
+            init,
+        }))
     }
 
     fn parse_class_decl(&mut self) -> PResult<Stmt> {
@@ -160,30 +163,32 @@ impl Parser<'_> {
             |this| {
                 let mut methods = Vec::new();
                 while !this.is(RightBrace) && !this.is_at_end() {
-                    methods.push(this.parse_fn_params_and_body("method")?);
+                    methods.push(this.parse_fn_params_and_body("method", None)?);
                 }
                 Ok(methods)
             },
         )?;
 
-        Ok(Stmt::new(
-            class_span.to(class_body_span),
-            stmt::ClassDecl {
-                name,
-                super_name,
-                methods,
-            },
-        ))
+        Ok(Stmt::from(stmt::ClassDecl {
+            span: class_span.to(class_body_span),
+            name,
+            super_name,
+            methods,
+        }))
     }
 
     fn parse_fun_decl(&mut self) -> PResult<Stmt> {
         use TokenKind::*;
         let fun_span = self.consume(Fun, S_MUST)?.span;
-        let fun = self.parse_fn_params_and_body("function")?;
-        Ok(Stmt::new(fun_span.to(fun.span), fun))
+        let fun = self.parse_fn_params_and_body("function", Some(fun_span))?;
+        Ok(Stmt::from(fun))
     }
 
-    fn parse_fn_params_and_body(&mut self, kind: &'static str) -> PResult<stmt::FunDecl> {
+    fn parse_fn_params_and_body(
+        &mut self,
+        kind: &'static str,
+        start_span: Option<Span>,
+    ) -> PResult<stmt::FunDecl> {
         use TokenKind::*;
         let name = self.consume_ident(format!("Expected {} name", kind))?;
 
@@ -208,7 +213,7 @@ impl Parser<'_> {
 
         let (body, body_span) = self.parse_block()?;
         Ok(stmt::FunDecl {
-            span: name.span.to(body_span),
+            span: start_span.unwrap_or(name.span).to(body_span),
             name,
             params,
             body,
@@ -229,7 +234,7 @@ impl Parser<'_> {
             Print => self.parse_print_stmt(),
             LeftBrace => {
                 let (stmts, span) = self.parse_block()?;
-                Ok(Stmt::new(span, stmt::Block { stmts }))
+                Ok(Stmt::from(stmt::Block { span, stmts }))
             }
             _ => self.parse_expr_stmt(),
         }
@@ -248,17 +253,15 @@ impl Parser<'_> {
         let then_branch = self.parse_stmt()?;
         let else_branch = self.take(Else).then(|| self.parse_stmt()).transpose()?;
 
-        Ok(Stmt::new(
-            if_token_span.to(else_branch
+        Ok(Stmt::from(stmt::If {
+            span: if_token_span.to(else_branch
                 .as_ref()
-                .map(|it| it.span)
-                .unwrap_or(then_branch.span)),
-            stmt::If {
-                cond,
-                then_branch: then_branch.into(),
-                else_branch: else_branch.map(|it| it.into()),
-            },
-        ))
+                .map(|it| it.span())
+                .unwrap_or_else(|| then_branch.span())),
+            cond,
+            then_branch: then_branch.into(),
+            else_branch: else_branch.map(|it| it.into()),
+        }))
     }
 
     // In this implementation, all `for` statements are translated to `while` statements by the
@@ -297,17 +300,15 @@ impl Parser<'_> {
                     _ => Some(this.parse_expr_stmt()?),
                 };
                 let cond = match this.current_token.kind {
-                    // If there is none condition in the for clauses, the parser creates a synthetic `true`
-                    // literal expression. This must be placed here to capture the current span (†).
-                    Semicolon => Expr::new(
-                        {
-                            let lo = this.current_token.span.lo; // <--- This span. (†)
-                            Span::new(lo, lo)
-                        },
-                        expr::Lit {
+                    // If there is no condition in the for clauses, the parser creates a synthetic
+                    // `true` literal expression. This must be placed here to capture the curr span.
+                    Semicolon => {
+                        let lo = this.current_token.span.lo;
+                        Expr::from(expr::Lit {
+                            span: Span::new(lo, lo),
                             value: LoxValue::Boolean(true),
-                        },
-                    ),
+                        })
+                    }
                     _ => this.parse_expr()?,
                 };
                 this.consume(Semicolon, "Expected `;` after `for` condition")?;
@@ -322,31 +323,31 @@ impl Parser<'_> {
 
         // Desugar `for` increment:
         if let Some(incr) = incr {
-            body = Stmt::new(
-                body.span,
-                stmt::Block {
-                    stmts: Vec::from([body, Stmt::new(incr.span, stmt::Expr { expr: incr })]),
-                },
-            );
+            body = Stmt::from(stmt::Block {
+                span: body.span(),
+                stmts: Vec::from([
+                    body,
+                    Stmt::from(stmt::Expr {
+                        span: incr.span(),
+                        expr: incr,
+                    }),
+                ]),
+            });
         }
 
         // Create the while:
-        body = Stmt::new(
-            for_token_span.to(body.span),
-            stmt::While {
-                cond,
-                body: body.into(),
-            },
-        );
+        body = Stmt::from(stmt::While {
+            span: for_token_span.to(body.span()),
+            cond,
+            body: body.into(),
+        });
 
         // Desugar `for` initializer:
         if let Some(init) = init {
-            body = Stmt::new(
-                body.span,
-                stmt::Block {
-                    stmts: Vec::from([init, body]),
-                },
-            );
+            body = Stmt::from(stmt::Block {
+                span: body.span(),
+                stmts: Vec::from([init, body]),
+            });
         }
 
         Ok(body)
@@ -364,13 +365,11 @@ impl Parser<'_> {
         )?;
         let body = self.parse_stmt()?;
 
-        Ok(Stmt::new(
-            while_token_span.to(body.span),
-            stmt::While {
-                cond,
-                body: body.into(),
-            },
-        ))
+        Ok(Stmt::from(stmt::While {
+            span: while_token_span.to(body.span()),
+            cond,
+            body: body.into(),
+        }))
     }
 
     fn parse_return_stmt(&mut self) -> PResult<Stmt> {
@@ -384,10 +383,11 @@ impl Parser<'_> {
             .consume(TokenKind::Semicolon, "Expected `;` after return")?
             .span;
 
-        Ok(Stmt::new(
-            return_span.to(semicolon_span),
-            stmt::Return { value, return_span },
-        ))
+        Ok(Stmt::from(stmt::Return {
+            span: return_span.to(semicolon_span),
+            value,
+            return_span,
+        }))
     }
 
     fn parse_print_stmt(&mut self) -> PResult<Stmt> {
@@ -398,10 +398,11 @@ impl Parser<'_> {
             .consume(TokenKind::Semicolon, "Expected `;` after value")?
             .span;
 
-        Ok(Stmt::new(
-            print_token_span.to(semicolon_span),
-            stmt::Print { expr, debug: false },
-        ))
+        Ok(Stmt::from(stmt::Print {
+            span: print_token_span.to(semicolon_span),
+            expr,
+            debug: false,
+        }))
     }
 
     fn parse_block(&mut self) -> PResult<(Vec<Stmt>, Span)> {
@@ -425,14 +426,21 @@ impl Parser<'_> {
         // If the parser is running in the REPL mode and the next token is of kind `Eof`, it will
         // emit a `Print` statement in order to show the given expression's value.
         if self.options.repl_mode && self.is_at_end() {
-            return Ok(Stmt::new(expr.span, stmt::Print { expr, debug: true }));
+            return Ok(Stmt::from(stmt::Print {
+                span: expr.span(),
+                expr,
+                debug: true,
+            }));
         }
 
         let semicolon_span = self
             .consume(TokenKind::Semicolon, "Expected `;` after expression")?
             .span;
 
-        Ok(Stmt::new(expr.span.to(semicolon_span), stmt::Expr { expr }))
+        Ok(Stmt::from(stmt::Expr {
+            span: expr.span().to(semicolon_span),
+            expr,
+        }))
     }
 
     //
@@ -453,28 +461,24 @@ impl Parser<'_> {
             // The right-most assignment value should be evaluated first (down in the parse tree),
             // so it should be parsed last. This semantic can be coded with this kind of recursion.
             let value = self.parse_assignment()?;
-            let span = left.span.to(value.span);
+            let span = left.span().to(value.span());
 
             // Now the parser knows that `left` must be an lvalue, otherwise it is an error.
-            match left.kind {
-                ExprKind::Var(expr::Var { name }) => Ok(Expr::new(
+            match left {
+                Expr::Var(expr::Var { name, .. }) => Ok(Expr::from(expr::Assignment {
                     span,
-                    expr::Assignment {
-                        name,
-                        value: value.into(),
-                    },
-                )),
-                ExprKind::Get(expr::Get { name, object }) => Ok(Expr::new(
+                    name,
+                    value: value.into(),
+                })),
+                Expr::Get(expr::Get { name, object, .. }) => Ok(Expr::from(expr::Set {
                     span,
-                    expr::Set {
-                        object,
-                        name,
-                        value: value.into(),
-                    },
-                )),
+                    object,
+                    name,
+                    value: value.into(),
+                })),
                 _ => Err(ParseError::Error {
                     message: "Invalid assignment target".into(),
-                    span: left.span,
+                    span: left.span(),
                 }),
             }
         } else {
@@ -541,13 +545,11 @@ impl Parser<'_> {
         if let Bang | Minus | Typeof | Show = self.current_token.kind {
             let operator = self.advance().clone();
             let operand = self.parse_unary()?;
-            return Ok(Expr::new(
-                operator.span.to(operand.span),
-                expr::Unary {
-                    operator,
-                    operand: operand.into(),
-                },
-            ));
+            return Ok(Expr::from(expr::Unary {
+                span: operator.span.to(operand.span()),
+                operator,
+                operand: operand.into(),
+            }));
         }
         self.parse_call_or_get()
     }
@@ -562,9 +564,11 @@ impl Parser<'_> {
                 Dot => {
                     self.advance(); // Consumes the `.`
                     let name = self.consume_ident("Expect property name after `.`")?;
-                    let span = expr.span.to(name.span);
-                    let object = expr.into();
-                    Expr::new(span, expr::Get { object, name })
+                    Expr::from(expr::Get {
+                        span: expr.span().to(name.span),
+                        object: expr.into(),
+                        name,
+                    })
                 }
                 _ => break,
             };
@@ -600,13 +604,11 @@ impl Parser<'_> {
             })
         }
 
-        Ok(Expr::new(
-            curr_expr.span.to(call_span),
-            expr::Call {
-                callee: curr_expr.into(),
-                args,
-            },
-        ))
+        Ok(Expr::from(expr::Call {
+            span: curr_expr.span().to(call_span),
+            callee: curr_expr.into(),
+            args,
+        }))
     }
 
     fn parse_primary(&mut self) -> PResult<Expr> {
@@ -614,32 +616,31 @@ impl Parser<'_> {
         match &self.current_token.kind {
             String(_) | Number(_) | True | False | Nil => {
                 let token = self.advance();
-                Ok(Expr::new(token.span, expr::Lit::from(token.clone())))
+                Ok(Expr::from(expr::Lit::from(token.clone())))
             }
             Identifier(_) => {
                 let name = self.consume_ident(S_MUST)?;
-                Ok(Expr::new(name.span, expr::Var { name }))
+                Ok(Expr::from(expr::Var {
+                    span: name.span,
+                    name,
+                }))
             }
             This => {
                 let span = self.advance().span;
-                Ok(Expr::new(
+                Ok(Expr::from(expr::This {
                     span,
-                    expr::This {
-                        name: LoxIdent::new(span, "this"),
-                    },
-                ))
+                    name: LoxIdent::new(span, "this"),
+                }))
             }
             Super => {
                 let super_span = self.advance().span;
                 self.consume(Dot, "Expected `.` after `super`")?;
                 let method = self.consume_ident("Expected superclass method name")?;
-                Ok(Expr::new(
-                    super_span.to(method.span),
-                    expr::Super {
-                        super_ident: LoxIdent::new(super_span, "super"),
-                        method,
-                    },
-                ))
+                Ok(Expr::from(expr::Super {
+                    span: super_span.to(method.span),
+                    super_ident: LoxIdent::new(super_span, "super"),
+                    method,
+                }))
             }
             LeftParen => {
                 let (expr, span) = self.paired_spanned(
@@ -648,7 +649,10 @@ impl Parser<'_> {
                     "Expected group to be closed",
                     |this| this.parse_expr(),
                 )?;
-                Ok(Expr::new(span, expr::Group { expr: expr.into() }))
+                Ok(Expr::from(expr::Group {
+                    span,
+                    expr: expr.into(),
+                }))
             }
             _ => Err(self.unexpected("Expected any expression", None)),
         }
@@ -836,14 +840,12 @@ macro_rules! bin_expr {
         while let $( TokenKind::$kind )|+ = $self.current_token.kind {
             let operator = $self.advance().clone();
             let right = $self.$next()?;
-            expr = Expr::new(
-                expr.span.to(right.span),
-                expr::$ast_kind {
-                    left: expr.into(),
-                    operator,
-                    right: right.into(),
-                },
-            );
+            expr = Expr::from(expr::$ast_kind {
+                span: expr.span().to(right.span()),
+                left: expr.into(),
+                operator,
+                right: right.into(),
+            });
         }
         Ok(expr)
     }};

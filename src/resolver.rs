@@ -5,8 +5,8 @@ use std::{
 
 use crate::{
     ast::{
-        expr::{Expr, ExprKind},
-        stmt::{self, Stmt, StmtKind},
+        expr::Expr,
+        stmt::{self, Stmt},
     },
     data::LoxIdent,
     interpreter::Interpreter,
@@ -38,8 +38,8 @@ impl Resolver<'_> {
     }
 
     fn resolve_stmt(&mut self, stmt: &Stmt) {
-        use StmtKind::*;
-        match &stmt.kind {
+        use Stmt::*;
+        match &stmt {
             VarDecl(var) => {
                 self.declare(&var.name);
                 if let Some(init) = &var.init {
@@ -128,13 +128,13 @@ impl Resolver<'_> {
     //
 
     fn resolve_expr(&mut self, expr: &Expr) {
-        use ExprKind::*;
-        match &expr.kind {
+        use Expr::*;
+        match &expr {
             Lit(_) => (),
             This(this) => {
                 if self.state.class == ClassState::None {
                     self.error(
-                        expr.span,
+                        this.span,
                         "Illegal this expression, can't use this outside of a class",
                     );
                 }
