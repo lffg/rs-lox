@@ -1,4 +1,4 @@
-use std::{borrow::Borrow, iter::Peekable, mem};
+use std::{borrow::Borrow, mem};
 
 use crate::{
     ast::{
@@ -21,7 +21,7 @@ type PResult<T> = Result<T, ParseError>;
 pub type ParserOutcome = (Vec<Stmt>, Vec<ParseError>);
 
 pub struct Parser<'src> {
-    scanner: Peekable<Scanner<'src>>,
+    scanner: Scanner<'src>,
     current_token: Token,
     prev_token: Token,
     diagnostics: Vec<ParseError>,
@@ -664,7 +664,7 @@ impl<'src> Parser<'src> {
     /// Creates a new parser.
     pub fn new(src: &'src str) -> Self {
         let mut parser = Self {
-            scanner: Scanner::new(src).peekable(),
+            scanner: Scanner::new(src),
             current_token: Token::dummy(),
             prev_token: Token::dummy(),
             diagnostics: Vec::new(),
