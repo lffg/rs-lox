@@ -1,6 +1,6 @@
 use std::{env, io};
 
-use lox::user;
+use tree_lox::user;
 
 fn main() -> io::Result<()> {
     match env::args().nth(1) {
