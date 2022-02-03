@@ -137,10 +137,9 @@ impl AsRef<str> for LoxIdent {
     }
 }
 
-#[allow(clippy::from_over_into)]
-impl Into<String> for LoxIdent {
-    fn into(self) -> String {
-        self.name
+impl From<LoxIdent> for String {
+    fn from(ident: LoxIdent) -> Self {
+        ident.name
     }
 }
 
