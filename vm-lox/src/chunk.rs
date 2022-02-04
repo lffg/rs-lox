@@ -5,8 +5,8 @@ use crate::ins::Ins;
 /// Represents a chunk of bytecode. A sequence of instructions.
 pub struct Chunk {
     name: String,
-    code: Vec<Ins>,
-    lines: Vec<u32>,
+    pub(crate) code: Vec<Ins>,
+    pub(crate) lines: Vec<u32>,
 }
 
 impl Chunk {
