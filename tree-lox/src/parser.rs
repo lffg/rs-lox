@@ -781,10 +781,8 @@ impl<'src> Parser<'src> {
     /// Returns an `ParseError::UnexpectedToken`.
     #[inline(always)]
     fn unexpected(&self, message: impl Into<String>, expected: Option<TokenKind>) -> ParseError {
-        let message = message.into();
-        #[cfg(debug_assertions)]
         ParseError::UnexpectedToken {
-            message,
+            message: message.into(),
             expected,
             offending: self.current_token.clone(),
         }
