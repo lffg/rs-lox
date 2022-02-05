@@ -22,6 +22,10 @@ impl Vm {
                 Negate => match self.pop() {
                     Value::Number(number) => self.push(Value::Number(-number)),
                 },
+                Add => arithmetic_binary!(self, +),
+                Subtract => arithmetic_binary!(self, -),
+                Multiply => arithmetic_binary!(self, *),
+                Divide => arithmetic_binary!(self, /),
                 Return => {
                     let val = self.pop();
                     println!("{val}");
@@ -43,3 +47,16 @@ impl Vm {
         self.stack.pop().unwrap()
     }
 }
+
+macro_rules! arithmetic_binary {
+    ($self:expr, $op:tt) => {{
+        let b = $self.pop();
+        let a = $self.pop();
+        use Value::*;
+        let out = match (a, b) {
+            (Number(a), Number(b)) => Number(a $op b),
+        };
+        $self.push(out);
+    }}
+}
+use arithmetic_binary;

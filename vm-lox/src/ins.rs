@@ -7,11 +7,22 @@ pub enum Ins {
     /// Constant value.
     Constant(Value),
 
-    /// Takes one operand, the value to negate.
-    /// Produces a single result value.
+    /// Negation.
     Negate,
 
-    /// Return instruction. (TODO)
+    /// Addition.
+    Add,
+
+    /// Subtraction.
+    Subtract,
+
+    /// Multiplication.
+    Multiply,
+
+    /// Division.
+    Divide,
+
+    /// Return instruction.
     Return,
 }
 
@@ -23,6 +34,10 @@ impl Debug for Ins {
             Constant(value) => write!(f, "{name:PAD$} {value:?}", name = "OP_CONSTANT"),
 
             Negate => f.write_str("OP_NEGATE"),
+            Add => f.write_str("OP_ADD"),
+            Subtract => f.write_str("OP_NEGATE"),
+            Multiply => f.write_str("OP_MULTIPLY"),
+            Divide => f.write_str("OP_DIVIDE"),
 
             Return => f.write_str("OP_RETURN"),
         }
