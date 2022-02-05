@@ -24,7 +24,7 @@ impl Vm {
                 },
                 Return => {
                     let val = self.pop();
-                    println!("{val:?}");
+                    println!("{val}");
                     return Ok(());
                 }
             }
