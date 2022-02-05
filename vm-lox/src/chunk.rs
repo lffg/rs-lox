@@ -26,10 +26,6 @@ impl Chunk {
             self.lines.len(),
             "Not parallel lengths of code and lines vectors"
         );
-        debug_assert!(
-            line >= self.lines.last().copied().unwrap_or(1),
-            "New line is smaller than the last one"
-        );
 
         self.code.push(ins);
         self.lines.push(line);
