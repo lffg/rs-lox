@@ -16,13 +16,16 @@ impl Vm {
         for ins in chunk.code {
             use Ins::*;
             match ins {
+                Constant(value) => {
+                    self.push(value);
+                }
+                Negate => match self.pop() {
+                    Value::Number(number) => self.push(Value::Number(-number)),
+                },
                 Return => {
                     let val = self.pop();
                     println!("{val:?}");
                     return Ok(());
-                }
-                Constant(value) => {
-                    self.push(value);
                 }
             }
         }
