@@ -5,8 +5,8 @@ use crate::ins::Ins;
 /// Represents a chunk of bytecode. A sequence of instructions.
 pub struct Chunk {
     name: String,
-    code: Vec<Ins>,
-    lines: Vec<u32>,
+    pub(crate) code: Vec<Ins>,
+    pub(crate) lines: Vec<u32>,
 }
 
 impl Chunk {
@@ -25,10 +25,6 @@ impl Chunk {
             self.code.len(),
             self.lines.len(),
             "Not parallel lengths of code and lines vectors"
-        );
-        debug_assert!(
-            line >= self.lines.last().copied().unwrap_or(1),
-            "New line is smaller than the last one"
         );
 
         self.code.push(ins);
