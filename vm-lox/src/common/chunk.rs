@@ -1,6 +1,6 @@
 use std::fmt::{self, Debug};
 
-use crate::ins::Ins;
+use crate::common::Ins;
 
 /// Represents a chunk of bytecode. A sequence of instructions.
 pub struct Chunk {

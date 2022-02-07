@@ -1,4 +1,4 @@
-use crate::{chunk::Chunk, ins::Ins, value::Value};
+use crate::common::{Chunk, Ins, Value};
 
 /// The virtual machine.
 pub struct Vm {

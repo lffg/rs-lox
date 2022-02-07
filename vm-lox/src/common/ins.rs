@@ -1,6 +1,6 @@
 use std::fmt::{self, Debug};
 
-use crate::value::Value;
+use crate::common::Value;
 
 /// Represents a single bytecode instruction.
 pub enum Ins {
