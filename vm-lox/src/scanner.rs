@@ -177,13 +177,13 @@ impl Scanner<'_> {
     ///   - A `left_modifier` will be *added* to the current *start* bound.
     ///   - A `right_modifier` will be *subtracted* from the current *end* bound.
     ///
-    /// Such new computed bound must hold the assertion that `new_start_bound <= new_end_bound`.
+    /// Such new computed bound must hold that `new_start_bound <= new_end_bound`.
     ///
     /// While performing the index operation, panics if the computed bound is invalid.
     fn slice(&self, left_modifier: usize, right_modifier: usize) -> &str {
         let left = self.lexme_start + left_modifier;
         let right = self.lexme_end - right_modifier;
-        assert!(left <= left, "Invalid computed bounds");
+        debug_assert!(left <= left, "Invalid computed bounds");
         &self.source[left..right]
     }
 
