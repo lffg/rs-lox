@@ -1,4 +1,8 @@
-pub mod chunk;
-pub mod ins;
-pub mod value;
-pub mod vm;
+#![allow(dead_code)] // TODO: remove this
+
+mod common;
+mod pipeline;
+mod scanner;
+mod vm;
+
+pub use pipeline::{interpret, Error, Result};

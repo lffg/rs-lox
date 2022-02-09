@@ -1,23 +1,43 @@
-use vm_lox::{chunk::Chunk, ins::Ins, value::Value, vm::Vm};
+use std::{
+    env, fs,
+    io::{self, Write},
+    path::Path,
+};
 
-fn main() {
-    let mut chunk = Chunk::new("test chunk");
+use vm_lox::interpret;
 
-    chunk.write(Ins::Constant(Value::Number(3.14)), 2);
-    chunk.write(Ins::Negate, 1);
-    chunk.write(Ins::Constant(Value::Number(0.14)), 3);
-    chunk.write(Ins::Add, 3);
+fn main() -> io::Result<()> {
+    match env::args().nth(1) {
+        Some(path) => run_file(&path),
+        _ => run_repl(),
+    }
+}
 
-    chunk.write(Ins::Constant(Value::Number(-2.0)), 3);
-    chunk.write(Ins::Multiply, 3);
+fn run(source: &str) {
+    if source.is_empty() {
+        return;
+    }
 
-    chunk.write(Ins::Constant(Value::Number(4.0)), 3);
-    chunk.write(Ins::Add, 3);
+    interpret(source).unwrap();
+}
 
-    chunk.write(Ins::Return, 4);
+fn run_file(path: impl AsRef<Path>) -> io::Result<()> {
+    let source = fs::read_to_string(path)?;
+    run(&source);
+    Ok(())
+}
 
-    println!("{:?}", &chunk);
+fn run_repl() -> io::Result<()> {
+    loop {
+        print!(">>> ");
+        io::stdout().flush()?;
 
-    let mut vm = Vm::new();
-    vm.interpret(chunk).unwrap();
+        let mut source = String::new();
+        if io::stdin().read_line(&mut source)? == 0 {
+            break;
+        }
+
+        run(source.trim());
+    }
+    Ok(())
 }
