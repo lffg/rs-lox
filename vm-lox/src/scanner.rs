@@ -16,7 +16,7 @@ pub struct Scanner<'s> {
 
 // Core implementation.
 impl Scanner<'_> {
-    /// Scans the next token kind in the source string.
+    /// Returns the next kind of token in the source string.
     fn scan_kind(&mut self) -> TokenKind {
         let current = self.bump();
 
@@ -32,9 +32,6 @@ impl Scanner<'_> {
     }
 
     /// Returns the next token in the source string.
-    ///
-    /// Will indefinitely return `Eof` tokens after the source string exhausted and there is no more
-    /// "real" tokens to produce.
     fn scan_token(&mut self) -> Token {
         // Current `lexme_start` should be the previously produced token's `lexme_end`.
         // This in fact means the start of a new lexme "registering".
@@ -69,12 +66,12 @@ impl Scanner<'_> {
             })
     }
 
-    /// Returns the next character in the stream without advancing.
+    /// Returns the first next character in the source string without advancing.
     fn first(&self) -> char {
         self.source_iter.clone().next().unwrap_or(EOF_CHAR)
     }
 
-    /// Returns the second character in the stream without advancing.
+    /// Returns the second next character in the source string without advancing.
     fn second(&self) -> char {
         self.source_iter.clone().nth(1).unwrap_or(EOF_CHAR)
     }
