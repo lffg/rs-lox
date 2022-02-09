@@ -16,7 +16,8 @@ pub fn interpret(source: &str) -> Result<()> {
     let scanner = Scanner::new(source);
 
     for token in scanner {
-        println!("{:?}", token);
+        let text = &source[token.span.into_range()];
+        println!("{token:?} [{text:?}]");
     }
 
     Ok(())

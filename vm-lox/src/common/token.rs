@@ -1,8 +1,9 @@
+use crate::common::Span;
+
 #[derive(Debug, Clone)]
-pub struct Token<'s> {
+pub struct Token {
     pub(crate) kind: TokenKind,
-    pub(crate) text: &'s str,
-    pub(crate) line: u32,
+    pub(crate) span: Span,
 }
 
 #[derive(Debug, Clone, PartialEq)]

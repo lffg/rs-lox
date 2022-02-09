@@ -1,24 +1,21 @@
 use std::str::Chars;
 
-use crate::common::{Token, TokenKind};
+use crate::common::{Span, Token, TokenKind};
 
 const EOF_CHAR: char = '\0';
 
 pub struct Scanner<'s> {
     // Input
-    source: &'s str,
     source_iter: Chars<'s>,
     // Lexme location
     lexme_start: usize,
     lexme_end: usize,
-    // Current line
-    line: u32,
     // Is it finished?
     done: bool,
 }
 
 // Core implementation.
-impl<'s> Scanner<'s> {
+impl Scanner<'_> {
     /// Scans the next token kind in the source string.
     fn scan_kind(&mut self) -> TokenKind {
         let current = self.bump();
@@ -38,18 +35,15 @@ impl<'s> Scanner<'s> {
     ///
     /// Will indefinitely return `Eof` tokens after the source string exhausted and there is no more
     /// "real" tokens to produce.
-    fn scan_token(&mut self) -> Token<'s> {
+    fn scan_token(&mut self) -> Token {
         // Current `lexme_start` should be the previously produced token's `lexme_end`.
         // This in fact means the start of a new lexme "registering".
         self.lexme_start = self.lexme_end;
 
         // Calling `scan` must happen before computing the `text` field.
         let kind = self.scan_kind();
-        Token {
-            kind,
-            text: &self.source[self.lexme_start..self.lexme_end],
-            line: self.line,
-        }
+        let span = Span::new(self.lexme_start, self.lexme_end);
+        Token { kind, span }
     }
 }
 
@@ -68,7 +62,7 @@ impl Scanner<'_> {
             })
             .unwrap_or_else(|| {
                 if self.done {
-                    panic!("Can not advance after the end of input");
+                    panic!("Scanner must not advance past the end of input");
                 }
                 self.done = true;
                 EOF_CHAR
@@ -96,18 +90,16 @@ impl<'s> Scanner<'s> {
     /// Creates a new scanner from the given source string.
     pub fn new(source: &'s str) -> Scanner<'s> {
         Scanner {
-            source,
             source_iter: source.chars(),
             lexme_start: 0,
             lexme_end: 0,
-            line: 1,
             done: false,
         }
     }
 }
 
-impl<'s> Iterator for Scanner<'s> {
-    type Item = Token<'s>;
+impl Iterator for Scanner<'_> {
+    type Item = Token;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.done {
