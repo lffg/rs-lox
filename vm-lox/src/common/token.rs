@@ -6,6 +6,22 @@ pub struct Token {
     pub(crate) span: Span,
 }
 
+impl Token {
+    /// Creates an returns the dummy token.
+    pub fn dummy() -> Token {
+        Token {
+            kind: TokenKind::Dummy,
+            span: Span::new(0, 0),
+        }
+    }
+}
+
+impl From<&Token> for Span {
+    fn from(token: &Token) -> Self {
+        token.span
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenKind {
     Identifier(String),
